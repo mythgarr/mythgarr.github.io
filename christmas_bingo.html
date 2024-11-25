@@ -1,0 +1,100 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Christmas Movie Bingo</title>
+    <style>
+        * {
+            font-family: "Roboto", sans-serif;
+        }
+        
+        div.bingo-container h1 {
+            text-align: center;
+            margin: 16px auto;
+        }
+
+        table#bingo-board {
+            width: 7.5in;
+            margin: 0 auto;
+            border-collapse: collapse;
+            border-radius: 12px;
+            border: 3px solid black; /* Solid black border */
+            font-size: 16pt;
+
+            & th,
+            td {
+                border-radius: 10px;
+                border: 3px solid black;
+                width: 20%;
+                text-align: center;
+                padding: 8px;
+                vertical-align: middle;
+            }
+
+            & tr {
+                height: 1.25in;
+            }
+        }
+        
+        @media print {
+            button{
+                display: none !important;
+            }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap" rel="stylesheet">
+    <script src="scripts/jquery-3.7.1.min.js"></script>
+    <script src="scripts/bingo.js"></script>
+    <script>
+        const BOARD_SIZE = 5;
+        // const strategy = new RandomStrategy(commonWords.concat(uncommonWords).concat(rareWords));
+        const strategy = new RandomBucketStrategy(commonWords, uncommonWords, rareWords);
+
+        function populateBoard() {
+            const bingoTable = $("table#bingo-board tbody");
+            bingoTable.empty();
+            const tiles = strategy.generate(BOARD_SIZE);
+            for (let y = 0; y < BOARD_SIZE; y++) {
+                let row = $("<tr></tr>");
+                for (let x = 0; x < BOARD_SIZE; x++) {
+                    let cell = $("<td></td>")
+                        .text(tiles[x][y]);
+                    row.append(cell);
+                }
+                bingoTable.append(row);
+            }
+        }
+        
+        $(document).ready(populateBoard);
+        $(document).beforeprint(populateBoard);
+    </script>
+</head>
+<body>
+<div class="bingo-container">
+    <h1>&#127876;Christmas Bingo&#127876;</h1>
+    <table id="bingo-board">
+        <colgroup>
+            <col span="1">
+            <col span="1">
+            <col span="1">
+            <col span="1">
+            <col span="1">
+        </colgroup>
+
+        <tbody>
+        <tr>
+            <td>1</td>
+            <td>1</td>
+            <td>1</td>
+            <td>1</td>
+            <td>1</td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<button onclick="populateBoard()">Randomize</button>
+</body>
+</html>
