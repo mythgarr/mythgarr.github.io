@@ -10,29 +10,31 @@
         
         div.bingo-container h1 {
             text-align: center;
-            margin: 16px auto;
+            margin: 14px auto;
         }
 
         table#bingo-board {
-            width: 7.5in;
             margin: 0 auto;
             border-collapse: collapse;
             border-radius: 12px;
             border: 3px solid black; /* Solid black border */
             font-size: 16pt;
+            
+            & colgroup col {
+                width: 145px;
+            }
 
             & th,
             td {
                 border-radius: 10px;
                 border: 3px solid black;
-                width: 20%;
                 text-align: center;
                 padding: 8px;
                 vertical-align: middle;
             }
 
             & tr {
-                height: 1.25in;
+                height: 1.5in;
             }
         }
         
@@ -48,6 +50,7 @@
     <script src="scripts/jquery-3.7.1.min.js"></script>
     <script src="scripts/bingo.js"></script>
     <script>
+        const ENABLE_EMOJI = true;
         const BOARD_SIZE = 5;
         // const strategy = new RandomStrategy(commonWords.concat(uncommonWords).concat(rareWords));
         const strategy = new RandomBucketStrategy(commonWords, uncommonWords, rareWords);
@@ -59,8 +62,13 @@
             for (let y = 0; y < BOARD_SIZE; y++) {
                 let row = $("<tr></tr>");
                 for (let x = 0; x < BOARD_SIZE; x++) {
-                    let cell = $("<td></td>")
-                        .text(tiles[x][y]);
+                    const phrase = tiles[x][y];
+                    let cell = $("<td></td>");
+                    if(ENABLE_EMOJI && phrase.emoji.length > 0) {
+                        cell = cell.append(phrase.emoji)
+                            .append("<br/>");
+                    }
+                    cell = cell.append(phrase.text);
                     row.append(cell);
                 }
                 bingoTable.append(row);
@@ -68,7 +76,6 @@
         }
         
         $(document).ready(populateBoard);
-        $(document).beforeprint(populateBoard);
     </script>
 </head>
 <body>
