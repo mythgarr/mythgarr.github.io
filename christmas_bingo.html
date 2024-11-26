@@ -38,6 +38,14 @@
             }
         }
         
+        td.normal {
+            background-color: transparent;
+        }
+        
+        td.toggled {
+            background-color: rgb(184, 252, 184);
+        }
+        
         @media print {
             button{
                 display: none !important;
@@ -73,6 +81,11 @@
                 }
                 bingoTable.append(row);
             }
+
+            $('table#bingo-board td').addClass('normal')
+                .on('click', function() {
+                    $(this).toggleClass('normal toggled');
+                });
         }
         
         $(document).ready(populateBoard);

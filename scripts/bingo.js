@@ -21,7 +21,7 @@ const commonWords = [
     new BingoPhrase('Bells', '\u{1F514}'),
     new BingoPhrase('"Scrooge" character','\u{1F620}\u{1F4B0}\u274C\u{1F384}'),
     new BingoPhrase('Gifts', '\u{1F381}'),
-    new BingoPhrase('Candy Cane','\u{1F36D}\u{1F36C}'),
+    new BingoPhrase('Candy','\u{1F36D}\u{1F36C}'),
     new BingoPhrase('Cookies', '\u{1F36A}'),
     new BingoPhrase('Santa Suit', '\u{1F385}\u{1F9E5}'),
     new BingoPhrase('Christmas Lights','\u2728\u{1F3E0}\u2B50'),
@@ -91,21 +91,7 @@ function populate(board, wordList) {
         }
     }
 }
-
-class RandomStrategy {
-    constructor(wordList) {
-        this.wordList = wordList
-    }
-
-    generate(size) {
-        shuffle(this.wordList);
-        const board = new Array(size);
-        populate(board, this.wordList);
-        return board;
-    }
-}
-
-// Phrases 
+ 
 class RandomBucketStrategy {
     COMMON_PERC = 0.70;
     UNCOMMON_PERC = 0.20;
@@ -125,6 +111,7 @@ class RandomBucketStrategy {
         let wordList = this.common.slice(0, Math.floor(WORD_COUNT * this.COMMON_PERC))
             .concat(this.uncommon.slice(0, Math.floor(WORD_COUNT * this.UNCOMMON_PERC)));
         wordList = wordList.concat(this.rare.slice(0, WORD_COUNT - wordList.length));
+        shuffle(wordList);
         const board = new Array(size);
         populate(board, wordList);
         return board;
