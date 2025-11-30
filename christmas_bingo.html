@@ -41,7 +41,7 @@
         h1.title{
             text-align: center;
             margin: 8px 0 4px;
-            font-size: clamp(24px, 4.5vw, 44px);
+            font-size: clamp(14px, 4.5vw, 44px);
             letter-spacing: 1px;
             text-shadow: 0 2px 0 rgba(0,0,0,0.2), 0 6px 16px rgba(0,0,0,0.35);
         }
@@ -88,6 +88,10 @@
             width: 100%;
             height: 100%;
             padding: 6px; /* small inner padding to avoid edge clipping when scaling */
+            /* Allow long text to wrap within the square tile */
+            text-align: center;
+            overflow-wrap: anywhere; /* allow breaking long words/URLs if needed */
+            word-break: break-word;   /* legacy fallback */
         }
         table#bingo-board td:hover{ transform: translateY(-1px); box-shadow: inset 0 4px 10px rgba(0,0,0,0.18); }
         table#bingo-board td.toggled{
@@ -212,25 +216,26 @@
 
         // Resize emojis to ensure they fit on one line within their cell content
         function fitEmojis(){
+            // Only target the emoji spans so text can wrap normally
             const nodes = document.querySelectorAll('table#bingo-board td .emoji');
             nodes.forEach(node => {
                 // Reset to computed base size from CSS to avoid cumulative shrinking
                 node.style.fontSize = '';
-                // Ensure measurement uses one line
-                node.style.whiteSpace = 'nowrap';
+                // Parent .content container defines the available width
                 const wrapper = node.parentElement; // .content
                 if (!wrapper) return;
-                // Available width inside the content box
                 const maxWidth = Math.max(0, wrapper.clientWidth - 8); // account for inner padding
-                // Safety bail-out
-                if (maxWidth <= 0) return;
+                if (maxWidth <= 0) return; // Safety bail-out
+
                 // Current computed size
                 const cs = window.getComputedStyle(node);
                 let size = parseFloat(cs.fontSize) || 24;
                 const minSize = 12; // don't go below this for legibility
-                // Downscale until it fits
-                // Use a bounded loop
+
+                // Downscale until it fits (bounded loop)
                 let guard = 0;
+                // Ensure the emoji stays on one line while measuring; CSS already has nowrap
+                node.style.whiteSpace = 'nowrap';
                 while (node.scrollWidth > maxWidth && size > minSize && guard < 40){
                     size -= 1;
                     node.style.fontSize = size + 'px';

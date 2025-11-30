@@ -36,7 +36,7 @@ const commonWords = [
 // UNCOMMON
 const uncommonWords = [
     new BingoPhrase('Ice skating','\u26F8'),
-    new BingoPhrase('Slipping/Tripping', '\u26F8\u{1F628}\u{1F915}'),
+    new BingoPhrase('Slipping / Tripping', '\u26F8\u{1F628}\u{1F915}'),
     new BingoPhrase('Role Model','\u{1F44F}\u{1F468}\u200D\u{1F467}\u{1F466}'),
     new BingoPhrase('Christmas Wish', '\u{1F384}\u{1F64F}\u2728'),
     new BingoPhrase('Dysfunctional family','\u{1F620}\u{1F468}\u200D\u{1F467}\u{1F466}\u{1F494}'),
