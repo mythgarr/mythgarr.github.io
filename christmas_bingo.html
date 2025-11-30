@@ -2,54 +2,163 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Christmas Movie Bingo</title>
     <style>
-        * {
-            font-family: "Roboto", sans-serif;
+        :root{
+            --bg1: #0d1b2a;
+            --bg2: #1b263b;
+            --accent: #e63946;
+            --accent-2: #2a9d8f;
+            --card: rgba(255,255,255,0.12);
+            --card-border: rgba(255,255,255,0.35);
+            --tile: rgba(255,255,255,0.25);
+            --tile-on: linear-gradient(135deg, #b6f3c9 0%, #6ee7b7 100%);
+            --text: #f8f9fa;
+            --shadow: 0 10px 25px rgba(0,0,0,0.25);
         }
-        
-        div.bingo-container h1 {
+
+        * { box-sizing: border-box; font-family: "Roboto", system-ui, -apple-system, Segoe UI, Arial, sans-serif; }
+        html, body { height: 100%; }
+        body{
+            margin: 0;
+            color: var(--text);
+            background: radial-gradient(1200px 800px at 10% -10%, #244469 0%, transparent 60%),
+                        radial-gradient(1000px 600px at 100% 0%, #12314e 0%, transparent 55%),
+                        linear-gradient(180deg, var(--bg1), var(--bg2));
+            overflow-x: hidden;
+        }
+
+        .page{
+            min-height: 100%;
+            padding: 24px clamp(12px, 3vw, 32px) 48px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+        }
+
+        h1.title{
             text-align: center;
-            margin: 14px auto;
+            margin: 8px 0 4px;
+            font-size: clamp(24px, 4.5vw, 44px);
+            letter-spacing: 1px;
+            text-shadow: 0 2px 0 rgba(0,0,0,0.2), 0 6px 16px rgba(0,0,0,0.35);
         }
 
-        table#bingo-board {
-            margin: 0 auto;
-            border-collapse: collapse;
+        .bingo-container{
+            width: min(100%, 900px);
+            background: var(--card);
+            backdrop-filter: blur(6px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: clamp(10px, 2.5vw, 22px);
+            box-shadow: var(--shadow);
+        }
+
+        table#bingo-board{
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 8px;
+            table-layout: fixed;
+        }
+        table#bingo-board colgroup col{ width: 20%; }
+        table#bingo-board td{
             border-radius: 12px;
-            border: 3px solid black; /* Solid black border */
-            font-size: 16pt;
-            
-            & colgroup col {
-                width: 145px;
-            }
+            border: 2px solid var(--card-border);
+            background: var(--tile);
+            color: var(--text);
+            text-align: center;
+            padding: clamp(6px, 1.1vw, 12px);
+            font-size: clamp(12px, 2.3vw, 20px);
+            line-height: 1.15;
+            position: relative;
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.15);
+            user-select: none;
+            cursor: pointer;
+            transition: transform .06s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease;
+        }
+        table#bingo-board td .content{
+            /* Keep tiles square and center content vertically and horizontally */
+            aspect-ratio: 1 / 1; /* keep tiles square on mobile */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            padding: 6px; /* small inner padding to avoid edge clipping when scaling */
+        }
+        table#bingo-board td:hover{ transform: translateY(-1px); box-shadow: inset 0 4px 10px rgba(0,0,0,0.18); }
+        table#bingo-board td.toggled{
+            background: var(--tile-on);
+            color: #053a2e;
+            border-color: #8be0c1;
+        }
+        table#bingo-board td.free{ outline: 3px dashed #ffd166; outline-offset: -6px; }
+        table#bingo-board td .emoji{
+            display: block;
+            font-size: clamp(18px, 3.5vw, 30px);
+            line-height: 1;
+            white-space: nowrap; /* prevent wrapping */
+            margin-bottom: 4px;
+            max-width: 100%;
+            overflow: hidden; /* hide if a hair over, JS will downscale to fit */
+        }
 
-            & th,
-            td {
-                border-radius: 10px;
-                border: 3px solid black;
-                text-align: center;
-                padding: 8px;
-                vertical-align: middle;
-            }
+        .controls{
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+        .btn{
+            appearance: none; border: none; cursor: pointer;
+            padding: 10px 16px; border-radius: 999px;
+            background: linear-gradient(135deg, #ff6b6b, #f94144);
+            color: white; font-weight: 700; letter-spacing: .4px;
+            box-shadow: 0 6px 16px rgba(249,65,68,.35);
+            transition: transform .08s ease, box-shadow .12s ease, filter .12s ease;
+        }
+        .btn.secondary{ background: linear-gradient(135deg, #06d6a0, #1dd3b0); box-shadow: 0 6px 16px rgba(29,211,176,.35); }
+        .btn:hover{ transform: translateY(-1px); filter: brightness(1.02); }
+        .btn:active{ transform: translateY(1px); box-shadow: 0 3px 10px rgba(0,0,0,.25); }
 
-            & tr {
-                height: 1.5in;
-            }
+        /* Bingo overlay + confetti */
+        #bingo-overlay{
+            position: fixed; inset: 0; display: none;
+            align-items: center; justify-content: center; pointer-events: none;
+            z-index: 50; color: #fff;
         }
-        
-        td.normal {
-            background-color: transparent;
+        #bingo-overlay .text{
+            font-size: clamp(42px, 10vw, 120px);
+            font-weight: 900; letter-spacing: 2px;
+            text-shadow: 0 2px 0 rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.45);
+            background: linear-gradient(135deg, #ffd166, #ef476f 60%, #06d6a0);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+            transform: scale(.9);
+            animation: pop .5s ease forwards;
         }
-        
-        td.toggled {
-            background-color: rgb(184, 252, 184);
+        @keyframes pop{ to{ transform: scale(1); } }
+        #confetti-container{ position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 49; }
+        .confetti{
+            position: absolute; top: -10%;
+            font-size: clamp(16px, 3.5vw, 28px);
+            animation: fall linear forwards;
+            opacity: .95;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,.25));
         }
-        
+        @keyframes fall {
+            0% { transform: translate3d(var(--x,0), -10%, 0) rotate(0deg); }
+            50% { transform: translate3d(calc(var(--x,0) + 20px), 50vh, 0) rotate(180deg); }
+            100% { transform: translate3d(calc(var(--x,0) - 20px), 110vh, 0) rotate(360deg); }
+        }
+
         @media print {
-            button{
-                display: none !important;
-            }
+            .btn{ display: none !important; }
+            body{ background: #fff; }
+            .bingo-container{ box-shadow: none; background: none; border: none; }
         }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -72,28 +181,141 @@
                 for (let x = 0; x < BOARD_SIZE; x++) {
                     const phrase = tiles[x][y];
                     let cell = $("<td></td>");
+                    let cell_content = $("<div class='content'></div>");
                     if(ENABLE_EMOJI && phrase.emoji.length > 0) {
-                        cell = cell.append(phrase.emoji)
-                            .append("<br/>");
+                        const emoji = $("<span class='emoji'></span>").text(phrase.emoji);
+                        cell_content.append(emoji);
                     }
-                    cell = cell.append(phrase.text);
+                    cell_content.append(document.createTextNode(phrase.text));
+                    cell.append(cell_content);
                     row.append(cell);
                 }
                 bingoTable.append(row);
             }
 
-            $('table#bingo-board td').addClass('normal')
+            const cells = $('table#bingo-board td');
+            cells.addClass('normal')
                 .on('click', function() {
+                    if ($(this).hasClass('free')) return; // free space is always on
                     $(this).toggleClass('normal toggled');
+                    if (checkBingo()) triggerBingoEffect();
                 });
+
+            // Mark the center as a FREE space and toggled by default
+            const mid = Math.floor(BOARD_SIZE / 2);
+            const freeCell = $("table#bingo-board tr").eq(mid).find('td').eq(mid);
+            freeCell.removeClass('normal').addClass('toggled free');
+
+            // After the board is rendered and classes applied, fit emojis to a single line
+            fitEmojis();
+        }
+
+        // Resize emojis to ensure they fit on one line within their cell content
+        function fitEmojis(){
+            const nodes = document.querySelectorAll('table#bingo-board td .emoji');
+            nodes.forEach(node => {
+                // Reset to computed base size from CSS to avoid cumulative shrinking
+                node.style.fontSize = '';
+                // Ensure measurement uses one line
+                node.style.whiteSpace = 'nowrap';
+                const wrapper = node.parentElement; // .content
+                if (!wrapper) return;
+                // Available width inside the content box
+                const maxWidth = Math.max(0, wrapper.clientWidth - 8); // account for inner padding
+                // Safety bail-out
+                if (maxWidth <= 0) return;
+                // Current computed size
+                const cs = window.getComputedStyle(node);
+                let size = parseFloat(cs.fontSize) || 24;
+                const minSize = 12; // don't go below this for legibility
+                // Downscale until it fits
+                // Use a bounded loop
+                let guard = 0;
+                while (node.scrollWidth > maxWidth && size > minSize && guard < 40){
+                    size -= 1;
+                    node.style.fontSize = size + 'px';
+                    guard++;
+                }
+            });
+        }
+
+        // Debounced resize handling to re-fit emojis on viewport changes
+        (function(){
+            let resizeTO;
+            window.addEventListener('resize', function(){
+                clearTimeout(resizeTO);
+                resizeTO = setTimeout(fitEmojis, 100);
+            });
+        })();
+
+        function checkBingo(){
+            const size = BOARD_SIZE;
+            const mid = Math.floor(size/2);
+            const rows = $("table#bingo-board tr");
+            if (rows.length !== size) return false;
+            const grid = [];
+            rows.each(function(y){
+                const tds = $(this).find('td');
+                grid[y] = [];
+                tds.each(function(x){
+                    const isCenter = (x===mid && y===mid);
+                    grid[y][x] = $(this).hasClass('toggled') || isCenter;
+                });
+            });
+            // rows
+            for (let y=0;y<size;y++) if (grid[y].every(Boolean)) return true;
+            // cols
+            for (let x=0;x<size;x++){
+                let ok = true;
+                for (let y=0;y<size;y++){ if (!grid[y][x]) { ok = false; break; } }
+                if (ok) return true;
+            }
+            // diags
+            let d1 = true, d2 = true;
+            for (let i=0;i<size;i++){ d1 = d1 && grid[i][i]; d2 = d2 && grid[i][size-1-i]; }
+            return d1 || d2;
+        }
+
+        let bingoActive = false;
+        function triggerBingoEffect(){
+            if (bingoActive) return;
+            bingoActive = true;
+            const overlay = document.getElementById('bingo-overlay');
+            const confettiBox = document.getElementById('confetti-container');
+            overlay.style.display = 'flex';
+            generateConfetti(confettiBox, 90);
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                confettiBox.innerHTML = '';
+                bingoActive = false;
+            }, 7500);
+        }
+
+        function generateConfetti(container, count){
+            const items = ['❄️','🎅','🎄'];
+            const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+            for (let i=0;i<count;i++){
+                const el = document.createElement('span');
+                el.className = 'confetti';
+                el.textContent = items[Math.floor(Math.random()*items.length)];
+                const left = Math.random() * vw;
+                el.style.left = left + 'px';
+                el.style.setProperty('--x', Math.round((Math.random()*2-1)*40) + 'px');
+                const dur = 3 + Math.random()*2; // 3-5s
+                const delay = Math.random()*0.8;
+                el.style.animationDuration = dur + 's';
+                el.style.animationDelay = delay + 's';
+                container.appendChild(el);
+            }
         }
         
         $(document).ready(populateBoard);
     </script>
 </head>
 <body>
-<div class="bingo-container">
-    <h1>&#127876;Christmas Bingo&#127876;</h1>
+<div class="page">
+  <h1 class="title">🎄 Christmas Movie Bingo 🎄</h1>
+  <div class="bingo-container">
     <table id="bingo-board">
         <colgroup>
             <col span="1">
@@ -113,8 +335,13 @@
         </tr>
         </tbody>
     </table>
+  </div>
+  <div class="controls">
+      <button class="btn secondary" onclick="populateBoard()">🔀 Randomize Board</button>
+  </div>
 </div>
 
-<button onclick="populateBoard()">Randomize</button>
+<div id="confetti-container"></div>
+<div id="bingo-overlay"><div class="text">BINGO!</div></div>
 </body>
 </html>
