@@ -175,8 +175,128 @@
         const BOARD_SIZE = 5;
         // const strategy = new RandomStrategy(commonWords.concat(uncommonWords).concat(rareWords));
         const strategy = new RandomBucketStrategy(commonWords, uncommonWords, rareWords);
+        const STORAGE_KEY = 'christmas_bingo_state_v1';
+        const EXPIRY_HOURS = 12; // hours to keep saved state
 
-        function populateBoard() {
+        function hoursToMs(h){ return h * 60 * 60 * 1000; }
+
+        function loadSavedState(){
+            try{
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if(!raw) return null;
+                const obj = JSON.parse(raw);
+                if(!obj || typeof obj !== 'object') return null;
+                if(typeof obj.savedAt !== 'number') return null;
+                const age = Date.now() - obj.savedAt;
+                if(age > hoursToMs(EXPIRY_HOURS)){
+                    // Expired, ignore and clear
+                    localStorage.removeItem(STORAGE_KEY);
+                    return null;
+                }
+                if(obj.size !== BOARD_SIZE) return null;
+                if(!Array.isArray(obj.grid) || !Array.isArray(obj.checked)) return null;
+                if(obj.grid.length !== BOARD_SIZE || obj.checked.length !== BOARD_SIZE) return null;
+                for(let y=0;y<BOARD_SIZE;y++){
+                    if(!Array.isArray(obj.grid[y]) || !Array.isArray(obj.checked[y])) return null;
+                    if(obj.grid[y].length !== BOARD_SIZE || obj.checked[y].length !== BOARD_SIZE) return null;
+                }
+                return obj;
+            }catch(e){
+                // corrupted or unavailable
+                return null;
+            }
+        }
+
+        function extractCellData(td){
+            const $td = $(td);
+            const emojiNode = $td.find('.emoji').get(0);
+            const emoji = emojiNode ? emojiNode.textContent : '';
+            // Clone .content and remove emoji span to get only the phrase text
+            const $content = $td.find('.content').clone();
+            $content.find('.emoji').remove();
+            const text = ($content.text() || '').trim();
+            return { text, emoji };
+        }
+
+        function saveCurrentState(){
+            try{
+                const rows = $("table#bingo-board tr");
+                // Build grid as [y][x]
+                const grid = [];
+                const checked = [];
+                const mid = Math.floor(BOARD_SIZE/2);
+                rows.each(function(y){
+                    const tds = $(this).find('td');
+                    grid[y] = [];
+                    checked[y] = [];
+                    tds.each(function(x){
+                        grid[y][x] = extractCellData(this);
+                        const isCenter = (x===mid && y===mid);
+                        checked[y][x] = $(this).hasClass('toggled') || isCenter;
+                    });
+                });
+                const state = { savedAt: Date.now(), size: BOARD_SIZE, grid, checked };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            }catch(e){
+                // fail silently; storage may be unavailable
+            }
+        }
+
+        function renderFromState(state){
+            const bingoTable = $("table#bingo-board tbody");
+            bingoTable.empty();
+            for(let y=0;y<BOARD_SIZE;y++){
+                let row = $("<tr></tr>");
+                for(let x=0;x<BOARD_SIZE;x++){
+                    const cellData = state.grid[y][x] || {text: '', emoji: ''};
+                    let cell = $("<td></td>");
+                    let cell_content = $("<div class='content'></div>");
+                    if(ENABLE_EMOJI && cellData.emoji && cellData.emoji.length>0){
+                        const emoji = $("<span class='emoji'></span>").text(cellData.emoji);
+                        cell_content.append(emoji);
+                    }
+                    cell_content.append(document.createTextNode(cellData.text || ''));
+                    cell.append(cell_content);
+                    row.append(cell);
+                }
+                bingoTable.append(row);
+            }
+
+            const mid = Math.floor(BOARD_SIZE / 2);
+            const cells = $('table#bingo-board td');
+            // Apply classes and click behavior
+            cells.each(function(index){
+                const x = index % BOARD_SIZE;
+                const y = Math.floor(index / BOARD_SIZE);
+                const isCenter = (x===mid && y===mid);
+                const shouldToggle = !!state.checked[y][x] || isCenter;
+                $(this).toggleClass('toggled', shouldToggle).toggleClass('normal', !shouldToggle);
+            }).on('click', function(){
+                if($(this).hasClass('free')) return;
+                $(this).toggleClass('normal toggled');
+                saveCurrentState();
+                if (checkBingo()) triggerBingoEffect();
+            });
+
+            // Mark center free
+            const freeCell = $("table#bingo-board tr").eq(mid).find('td').eq(mid);
+            freeCell.addClass('free').removeClass('normal').addClass('toggled');
+
+            fitEmojis();
+        }
+
+        function populateBoard(forceNew = false) {
+            // Try to restore from storage first (unless forced new)
+            if (forceNew) {
+                try { localStorage.removeItem(STORAGE_KEY); } catch(e){}
+            }
+            const saved = forceNew ? null : loadSavedState();
+            if(saved){
+                renderFromState(saved);
+                return;
+            }
+
+            // Otherwise, generate a new board
             const bingoTable = $("table#bingo-board tbody");
             bingoTable.empty();
             const tiles = strategy.generate(BOARD_SIZE);
@@ -202,6 +322,7 @@
                 .on('click', function() {
                     if ($(this).hasClass('free')) return; // free space is always on
                     $(this).toggleClass('normal toggled');
+                    saveCurrentState();
                     if (checkBingo()) triggerBingoEffect();
                 });
 
@@ -212,6 +333,9 @@
 
             // After the board is rendered and classes applied, fit emojis to a single line
             fitEmojis();
+
+            // Save initial state for persistence
+            saveCurrentState();
         }
 
         // Resize emojis to ensure they fit on one line within their cell content
@@ -342,7 +466,7 @@
     </table>
   </div>
   <div class="controls">
-      <button class="btn secondary" onclick="populateBoard()">🔀 Randomize Board</button>
+      <button class="btn secondary" onclick="populateBoard(true)">🔀 Randomize Board</button>
   </div>
 </div>
 
