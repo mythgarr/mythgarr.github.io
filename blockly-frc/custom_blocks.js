@@ -7,7 +7,7 @@
  *   • Cross-cutting behavior (the subsystem→method dropdown sync,
  *     the trigger root's no-delete/no-move flags) is registered as
  *     Extensions via Blockly.Extensions.register.
- *   • Colors come from theme block-styles (defined in app.js's
+ *   • Colors come from theme block-styles (defined in boot.js's
  *     theme), referenced from each block's "style" property — the
  *     blocks themselves never call setColour.
  *
@@ -125,12 +125,23 @@
             new Blockly.FieldDropdown(() => BlocklyFRC.getControllerOptions()),
             'CONTROLLER'
          )
-         .appendField('.')
+         .appendField(' is pressing ')
          .appendField(
             new Blockly.FieldDropdown(() => BlocklyFRC.getButtonOptions()),
             'BUTTON'
-         )
-         .appendField('()');
+         );
+  });
+
+  /* Controller-binding BUTTON dropdown: dynamic so it pulls the image
+   * options from BlocklyFRC.getButtonOptions() — single source of truth
+   * shared with the trigger_state block. */
+  Blockly.Extensions.register('frc_binding_button_dropdown', function () {
+    const input = this.getInput('BUTTON_ROW');
+    if (!input) return;
+    input.appendField(
+      new Blockly.FieldDropdown(() => BlocklyFRC.getButtonOptions()),
+      'BUTTON'
+    );
   });
 
   /* ----------------------------------------------------------------
@@ -142,99 +153,112 @@
     {
       /* A standalone block that maps one controller button+edge to a
        * composed command. Lives on the controller's canvas — one block
-       * per binding. No prev/next statement so it cannot be nested. */
+       * per binding. No prev/next statement so it cannot be nested.
+       *
+       * Reads as a sentence: "when [A button image] is [pressed]  /
+       * do: …".  The BUTTON dropdown is filled at init by the
+       * frc_binding_button_dropdown extension, which pulls image
+       * options from BlocklyFRC.getButtonOptions() so the binding
+       * block and trigger_state block share one button picker.
+       *
+       * The optional NAME row at the bottom is used as the comment
+       * label in generated Java and as the binding name in the
+       * Padcrafter mapping URL. When empty, java_generator.js
+       * synthesizes a label from the BUTTON+EDGE display text. */
       type: 'frc_controller_binding',
-      message0: '▸ %1   %2   %3   schedule: %4',
+      message0: 'when %1 is %2',
       args0: [
-        { type: 'field_input',   name: 'NAME',   text: 'new binding' },
-        {
-          type: 'field_dropdown', name: 'BUTTON',
-          options: [
-            ['a',            'a'],           ['b',            'b'],
-            ['x',            'x'],           ['y',            'y'],
-            ['leftBumper',   'leftBumper'],  ['rightBumper',  'rightBumper'],
-            ['leftTrigger',  'leftTrigger'], ['rightTrigger', 'rightTrigger'],
-            ['back',         'back'],        ['start',        'start'],
-            ['leftStick',    'leftStick'],   ['rightStick',   'rightStick'],
-            ['povUp',        'povUp'],       ['povRight',     'povRight'],
-            ['povDown',      'povDown'],     ['povLeft',      'povLeft']
-          ]
-        },
+        { type: 'input_dummy', name: 'BUTTON_ROW' },
         {
           type: 'field_dropdown', name: 'EDGE',
           options: [
-            ['on press',       'onTrue'],
-            ['while held',     'whileTrue'],
-            ['on release',     'onFalse'],
-            ['toggle on press','toggleOnTrue'],
-            ['while released', 'whileFalse']
+            ['pressed',          'onTrue'],
+            ['held down',        'whileTrue'],
+            ['released',         'onFalse'],
+            ['pressed (toggle)', 'toggleOnTrue'],
+            ['not held',         'whileFalse']
           ]
-        },
+        }
+      ],
+      message1: 'do %1',
+      args1: [
         { type: 'input_statement', name: 'COMMAND', check: 'Command' }
       ],
+      message2: 'name (optional) %1',
+      args2: [
+        { type: 'field_input', name: 'NAME', text: '' }
+      ],
       style: 'frc_trigger_blocks',
-      tooltip: 'A controller button binding. Set the name, choose a button and trigger type, then drop command blocks inside. Generates m_controller.button().edge(command).'
+      tooltip: 'Runs the commands inside when the chosen button event happens on this controller. For example, "when A button is pressed, do: drive forward" generates m_controller.a().onTrue(driveForward()). The optional name is used as a code comment and as the label on the Padcrafter controller-mapping image.',
+      extensions: ['frc_binding_button_dropdown']
     },
 
     /* ─── 1. FUNCTION ROOT (used inside Command Function workspaces) ── */
     {
       type: 'frc_binding_root',
-      message0: 'ƒ command function body %1 return: %2',
-      args0: [
-        { type: 'input_dummy' },
+      message0: 'this routine returns:',
+      message1: '%1',
+      args1: [
         { type: 'input_statement', name: 'COMMAND', check: 'Command' }
       ],
       style: 'frc_trigger_blocks',
-      tooltip: 'The root of this command function. Blocks attached here define the command that is returned.',
+      tooltip: 'The starting point of a saved routine. Whatever you attach here becomes the routine that other blocks can call.',
       extensions: ['frc_root_lock']
     },
 
     /* ─── 2. COMPOSITION ───────────────────────────────────────── */
     {
       type: 'frc_sequence',
-      message0: '⇣  sequence %1',
-      args0: [
+      message0: 'do in order',
+      message1: '%1',
+      args1: [
         { type: 'input_statement', name: 'CHILDREN', check: 'Command' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_sequence_blocks',
-      tooltip: 'Runs commands one after another. Generates Commands.sequence(...).',
+      tooltip: 'Runs each block inside one after the other, top to bottom. Generates Commands.sequence(...).',
       helpUrl: 'https://docs.wpilib.org/en/stable/docs/software/commandbased/command-compositions.html'
     },
     {
       type: 'frc_parallel',
-      message0: '∥  parallel %1',
-      args0: [
+      message0: 'do at the same time',
+      message1: '%1',
+      args1: [
         { type: 'input_statement', name: 'CHILDREN', check: 'Command' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_parallel_blocks',
-      tooltip: 'Runs all commands at once. Ends when all are finished. Generates Commands.parallel(...).'
+      tooltip: 'Starts every block inside at the same time. Finishes when ALL of them finish. Generates Commands.parallel(...).'
     },
     {
       type: 'frc_race',
-      message0: '🏁  parallel race %1',
-      args0: [
+      message0: 'race — stop when the first one finishes',
+      message1: '%1',
+      args1: [
         { type: 'input_statement', name: 'CHILDREN', check: 'Command' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_race_blocks',
-      tooltip: 'Runs all commands at once. Ends when ANY one finishes — the rest are interrupted. Generates Commands.race(...).'
+      tooltip: 'Starts every block inside at the same time. Finishes as soon as ANY one of them finishes — the rest are stopped. Generates Commands.race(...).'
     },
     {
       type: 'frc_deadline',
-      message0: '⌛  parallel deadline   deadline: %1   alongside: %2',
-      args0: [
-        { type: 'input_statement', name: 'DEADLINE', check: 'Command' },
+      message0: 'run together — stop when the time-keeper finishes',
+      message1: 'time-keeper %1',
+      args1: [
+        { type: 'input_statement', name: 'DEADLINE', check: 'Command' }
+      ],
+      message2: 'alongside %1',
+      args2: [
         { type: 'input_statement', name: 'CHILDREN', check: 'Command' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_deadline_blocks',
-      tooltip: 'All commands start together. Ends when the deadline command finishes — the others are then interrupted. Generates Commands.deadline(...).'
+      tooltip: 'All blocks start at the same time. The group ends when the time-keeper block finishes — anything still running alongside it is stopped. Generates Commands.deadline(...).'
     },
 
     /* ─── 3. LEAF COMMANDS ─────────────────────────────────────── */
@@ -242,14 +266,14 @@
       /* The frc_dropdown_sync_command extension fills ROW with the
        * dynamic dropdowns. */
       type: 'frc_subsystem_command',
-      message0: '▶ %1',
+      message0: '%1',
       args0: [
         { type: 'input_dummy', name: 'ROW' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_command_blocks',
-      tooltip: 'Calls a Supplier<Command> method on a subsystem.',
+      tooltip: 'Runs an action defined on one of your robot\'s subsystems.',
       extensions: ['frc_dropdown_sync_command']
     },
     {
@@ -287,7 +311,7 @@
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_command_blocks',
-      tooltip: 'Idles for a fixed number of seconds. Maps to Commands.waitSeconds(s).'
+      tooltip: 'Pauses for a fixed number of seconds, then finishes. Maps to Commands.waitSeconds(s).'
     },
     {
       type: 'frc_wait_until',
@@ -298,113 +322,135 @@
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_command_blocks',
-      tooltip: 'Blocks until the boolean supplier returns true. Maps to Commands.waitUntil(supplier).'
+      tooltip: 'Pauses until the yes/no question becomes yes (true). Maps to Commands.waitUntil(supplier).'
     },
     {
       type: 'frc_print',
-      message0: 'print %1',
+      message0: 'print message %1',
       args0: [
         { type: 'field_input', name: 'TEXT', text: 'hello' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_command_blocks',
-      tooltip: 'Prints to console. Maps to Commands.print("…").'
+      tooltip: 'Prints a message to the driver-station console. Maps to Commands.print("…").'
     },
     {
       type: 'frc_none',
-      message0: '—  no-op (idle)',
+      message0: 'do nothing',
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_command_blocks',
-      tooltip: 'Does nothing. Useful as a placeholder branch in either(). Maps to Commands.none().'
+      tooltip: 'A placeholder that does nothing — useful for the "otherwise" branch of an if/else. Maps to Commands.none().'
     },
 
     /* ─── 4. DECORATORS ────────────────────────────────────────── */
+    /* Two-row Scratch-style layout: title row (message0) + body row
+     * (message1) so the wrap relationship is visible at a glance. */
     {
       type: 'frc_with_timeout',
-      message0: '🕒  timeout after %1 s   command: %2',
+      message0: 'stop after %1 seconds',
       args0: [
-        { type: 'field_number', name: 'SECONDS', value: 2.0, min: 0.01, max: 600, precision: 0.05 },
+        { type: 'field_number', name: 'SECONDS', value: 2.0, min: 0.01, max: 600, precision: 0.05 }
+      ],
+      message1: 'do %1',
+      args1: [
         { type: 'input_statement', name: 'CMD', check: 'Command' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_decorator_blocks',
-      tooltip: 'Interrupts the wrapped command if it runs longer than X seconds. Maps to .withTimeout(s).'
+      tooltip: 'Stops the wrapped action if it has not finished after the given number of seconds. Maps to .withTimeout(s).'
     },
     {
       type: 'frc_until',
-      message0: '▣  until %1   command: %2',
+      message0: 'stop when %1',
       args0: [
-        { type: 'input_value', name: 'COND', check: 'Boolean' },
+        { type: 'input_value', name: 'COND', check: 'Boolean' }
+      ],
+      message1: 'do %1',
+      args1: [
         { type: 'input_statement', name: 'CMD', check: 'Command' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_decorator_blocks',
-      tooltip: 'Interrupts the wrapped command when the condition becomes true. Maps to .until(supplier).'
+      tooltip: 'Stops the wrapped action as soon as the question becomes yes (true). Maps to .until(supplier).'
     },
     {
       type: 'frc_unless',
-      message0: '⊘  unless %1   command: %2',
+      message0: 'skip if %1',
       args0: [
-        { type: 'input_value', name: 'COND', check: 'Boolean' },
+        { type: 'input_value', name: 'COND', check: 'Boolean' }
+      ],
+      message1: 'do %1',
+      args1: [
         { type: 'input_statement', name: 'CMD', check: 'Command' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_decorator_blocks',
-      tooltip: 'Skips the wrapped command if the condition is true at start. Maps to .unless(supplier).'
+      tooltip: 'Skips the wrapped action entirely if the question is yes (true) right when it would start. Maps to .unless(supplier).'
     },
     {
       type: 'frc_only_while',
-      message0: '▸  only while %1   command: %2',
+      message0: 'only while %1',
       args0: [
-        { type: 'input_value', name: 'COND', check: 'Boolean' },
+        { type: 'input_value', name: 'COND', check: 'Boolean' }
+      ],
+      message1: 'do %1',
+      args1: [
         { type: 'input_statement', name: 'CMD', check: 'Command' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_decorator_blocks',
-      tooltip: 'Runs only while the condition is true. Maps to .onlyWhile(supplier).'
+      tooltip: 'Runs the wrapped action only as long as the question stays yes (true). Maps to .onlyWhile(supplier).'
     },
     {
       type: 'frc_as_proxy',
-      message0: '⇄  as proxy   command: %1',
-      args0: [
+      message0: 'as proxy',
+      message1: 'do %1',
+      args1: [
         { type: 'input_statement', name: 'CMD', check: 'Command' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_decorator_blocks',
-      tooltip: 'Wraps a command in a ProxyCommand so its requirements are not propagated. Maps to .asProxy().'
+      tooltip: 'Advanced: wraps a command in a ProxyCommand so its subsystem requirements are not propagated to the outer composition. Maps to .asProxy().'
     },
     {
       type: 'frc_repeat',
-      message0: '↻  repeat forever   command: %1',
-      args0: [
+      message0: 'repeat forever',
+      message1: 'do %1',
+      args1: [
         { type: 'input_statement', name: 'CMD', check: 'Command' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_decorator_blocks',
-      tooltip: 'Restarts the wrapped command every time it ends. Generates .repeatedly().'
+      tooltip: 'Restarts the wrapped action every time it ends. Generates .repeatedly().'
     },
 
     /* ─── 5. CONDITIONAL EXECUTION ─────────────────────────────── */
     {
       type: 'frc_either',
-      message0: '?  if %1 then %2 else %3',
+      message0: 'if %1',
       args0: [
-        { type: 'input_value', name: 'COND', check: 'Boolean' },
-        { type: 'input_statement', name: 'ON_TRUE', check: 'Command' },
+        { type: 'input_value', name: 'COND', check: 'Boolean' }
+      ],
+      message1: 'then %1',
+      args1: [
+        { type: 'input_statement', name: 'ON_TRUE', check: 'Command' }
+      ],
+      message2: 'else %1',
+      args2: [
         { type: 'input_statement', name: 'ON_FALSE', check: 'Command' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_decorator_blocks',
-      tooltip: 'Picks one of two commands at scheduling time. Maps to Commands.either(onTrue, onFalse, supplier).'
+      tooltip: 'Checks the question once when this block starts. If yes (true), runs the "then" branch; otherwise runs the "else" branch. Maps to Commands.either(onTrue, onFalse, supplier).'
     },
 
     /* ─── 3b. COMMAND FUNCTION CALL ───────────────────────────── */
@@ -413,27 +459,27 @@
        * The frc_dropdown_function extension fills ROW with the
        * dynamic function-name dropdown. */
       type: 'frc_command_function',
-      message0: 'ƒ %1',
+      message0: 'run routine %1',
       args0: [
         { type: 'input_dummy', name: 'ROW' }
       ],
       previousStatement: 'Command',
       nextStatement: 'Command',
       style: 'frc_command_blocks',
-      tooltip: 'Calls a command function defined on this Commands class. Generates functionName(). Define functions in Build → Command Functions.',
+      tooltip: 'Runs a saved routine that you built in Build → Command Functions. Generates routineName().',
       extensions: ['frc_dropdown_function']
     },
 
     /* ─── 6. BOOLEAN / VALUE BLOCKS ────────────────────────────── */
     {
       type: 'frc_subsystem_boolean',
-      message0: '? %1',
+      message0: '%1',
       args0: [
         { type: 'input_dummy', name: 'ROW' }
       ],
       output: 'Boolean',
       style: 'frc_condition_blocks',
-      tooltip: 'Calls a Supplier<Boolean> method on a subsystem. Returns the boolean.',
+      tooltip: 'Asks a yes/no question that one of your subsystems can answer.',
       extensions: ['frc_dropdown_sync_boolean']
     },
     {
@@ -443,12 +489,12 @@
         {
           type: 'field_dropdown',
           name: 'VAL',
-          options: [['true', 'TRUE'], ['false', 'FALSE']]
+          options: [['yes (true)', 'TRUE'], ['no (false)', 'FALSE']]
         }
       ],
       output: 'Boolean',
       style: 'frc_boolean_blocks',
-      tooltip: 'A boolean literal.'
+      tooltip: 'A fixed yes/no value.'
     },
     {
       type: 'frc_bool_not',
@@ -459,7 +505,7 @@
       inputsInline: true,
       output: 'Boolean',
       style: 'frc_boolean_blocks',
-      tooltip: 'Logical NOT of the supplier.'
+      tooltip: 'Flips a yes/no value: yes becomes no, no becomes yes.'
     },
     {
       type: 'frc_bool_combine',
@@ -476,17 +522,17 @@
       inputsInline: true,
       output: 'Boolean',
       style: 'frc_boolean_blocks',
-      tooltip: 'Combine two boolean suppliers with AND or OR.'
+      tooltip: 'Combines two yes/no values. "and" is yes only when both are yes; "or" is yes when either is yes.'
     },
     {
       type: 'frc_trigger_state',
-      message0: 'controller %1',
+      message0: '%1',
       args0: [
         { type: 'input_dummy', name: 'TRIG_ROW' }
       ],
       output: 'Boolean',
       style: 'frc_condition_blocks',
-      tooltip: 'Reads the current state of a controller button as a BooleanSupplier (e.g. m_driver.a().getAsBoolean()).',
+      tooltip: 'A yes/no question that reads the current state of a controller button right now (e.g. is m_driver.a() currently pressed?).',
       extensions: ['frc_dynamic_controller_button']
     }
   ];

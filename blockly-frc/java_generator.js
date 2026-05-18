@@ -73,9 +73,6 @@
   }
 
   const javaGenerator = new JavaGenerator();
-  /* Expose for code reuse and consistency with the built-in
-   * generators (e.g. Blockly's own javascriptGenerator). */
-  BlocklyFRC.javaGenerator = javaGenerator;
 
   /* ----------------------------------------------------------------
    * Helper: walk a command stack input and return its children as a
@@ -333,19 +330,19 @@
   };
 
   /* ----------------------------------------------------------------
-   * Public entry point used by app.js for command functions.
+   * Public entry point used by boot.js for command functions.
    *
    * Returns the Java EXPRESSION for the entire workspace, ready to
    * be substituted into `return <expr>;` inside a command method.
    * Only meaningful when the workspace contains frc_binding_root.
    * -------------------------------------------------------------- */
-  BlocklyFRC.generateJavaExpression = function (workspace) {
+  function generateJavaExpression (workspace) {
     const top = workspace.getTopBlocks(false).find(b => b.type === 'frc_binding_root');
     if (!top) return null;
     const code = javaGenerator.forBlock['frc_binding_root'](top, javaGenerator);
     if (!code) return null;
     return prettyFormatJava(code);
-  };
+  }
 
   /* ----------------------------------------------------------------
    * Public entry point for controller workspaces.
@@ -355,17 +352,35 @@
    *   [{ name, button, edge, expr }, ...]
    *
    * `expr` is already pretty-formatted and ready to drop into
-   * `.onTrue(<expr>)`.  app.js is responsible for wrapping it into
+   * `.onTrue(<expr>)`.  boot.js is responsible for wrapping it into
    * a full binding line with the controller field name.
    * -------------------------------------------------------------- */
-  BlocklyFRC.generateControllerBindingLines = function (workspace) {
+  function generateControllerBindingLines(workspace) {
     const results = [];
     const topBlocks = workspace.getTopBlocks(/* ordered */ true);
     for (const block of topBlocks) {
       if (block.type !== 'frc_controller_binding') continue;
-      const name   = (block.getFieldValue('NAME')   || 'unnamed').trim();
       const button = block.getFieldValue('BUTTON') || 'a';
       const edge   = block.getFieldValue('EDGE')   || 'onTrue';
+      /* Use the user's name if they set one (NAME is also what gets
+       * embedded in the Padcrafter mapping URL). Otherwise synthesize
+       * a label from the dropdown DISPLAY text — for the BUTTON
+       * field that's the image's alt ("A button"), for the EDGE
+       * field it's the wording ("pressed", "held down", …). Falls
+       * back to raw field values if a field hasn't been initialized
+       * yet (e.g. during early scan). */
+      const userName = (block.getFieldValue('NAME') || '').trim();
+      function fieldText(name, fallback) {
+        const f = block.getField(name);
+        if (f && typeof f.getText === 'function') {
+          const t = f.getText();
+          if (t) return t;
+        }
+        return fallback;
+      }
+      const buttonText = fieldText('BUTTON', button);
+      const edgeText   = fieldText('EDGE',   edge);
+      const name = userName || `${buttonText} is ${edgeText}`;
       const parts  = commandChain(block, 'COMMAND', javaGenerator);
       let expr;
       if (parts.length === 0)      expr = 'Commands.none()';
@@ -374,7 +389,7 @@
       results.push({ name, button, edge, expr: prettyFormatJava(expr) });
     }
     return results;
-  };
+  }
 
   /* Pretty-format: insert line breaks inside the outermost
    * Commands.sequence/parallel/race/deadline/either calls. */
@@ -431,7 +446,10 @@
     return result;
   }
 
-  /* Expose for app.js to use when re-formatting outer joins. */
-  BlocklyFRC._prettyJava = prettyFormatJava;
-
+  /* Expose for boot.js to use when re-formatting outer joins. */
+  // BlocklyFRC._prettyJava = prettyFormatJava;
+  /* Expose for code reuse and consistency with the built-in
+   * generators (e.g. Blockly's own javascriptGenerator). */
+  // BlocklyFRC.register('java_generator', {javaGenerator});
+  BlocklyFRC.register({javaGenerator, generateJavaExpression, generateControllerBindingLines});
 })();

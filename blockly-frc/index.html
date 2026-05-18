@@ -1,250 +1,342 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Blockly for FRC</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/blockly@10.4.3/blockly.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
-<link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Blockly for FRC</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+          rel="stylesheet">
+    <script src="https://unpkg.com/blockly@10.4.3/blockly.min.js"></script>
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
 <!-- Top bar -->
 <header class="topbar">
-  <div class="brand">
-    <div class="brand-mark">
-      <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="4" y="4" width="9" height="9" rx="1.5"/>
-        <rect x="19" y="4" width="9" height="9" rx="1.5"/>
-        <rect x="4" y="19" width="9" height="9" rx="1.5"/>
-        <path d="M19 19 L28 28 M28 19 L19 28" stroke-linecap="round"/>
-      </svg>
+    <div class="brand">
+        <div class="brand-mark">
+            <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="4" y="4" width="9" height="9" rx="1.5"/>
+                <rect x="19" y="4" width="9" height="9" rx="1.5"/>
+                <rect x="4" y="19" width="9" height="9" rx="1.5"/>
+                <path d="M19 19 L28 28 M28 19 L19 28" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <div class="brand-text">
+            <div class="brand-name">Blockly for FRC</div>
+            <div class="brand-sub">Developed by FRC 2789 (Texplosion)</div>
+        </div>
     </div>
-    <div class="brand-text">
-      <div class="brand-name">Blockly for FRC</div>
-      <div class="brand-sub">Developed by FRC 2789 (Texplosion)</div>
+
+    <nav class="tabs" role="tablist">
+        <button class="tab active" data-view="configure">
+            <span class="tab-num">01</span><span>Configure</span>
+        </button>
+        <button class="tab" data-view="build">
+            <span class="tab-num">02</span><span>Build</span>
+        </button>
+        <button class="tab" data-view="export">
+            <span class="tab-num">03</span><span>Export</span>
+        </button>
+    </nav>
+
+    <div class="topbar-actions">
+        <button class="btn btn-ghost" id="btn-import">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Import
+        </button>
+        <button class="btn btn-ghost" id="btn-export-json">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Save Project
+        </button>
+        <input type="file" id="file-input" accept=".json" style="display:none">
     </div>
-  </div>
-
-  <nav class="tabs" role="tablist">
-    <button class="tab active" data-view="configure">
-      <span class="tab-num">01</span><span>Configure</span>
-    </button>
-    <button class="tab" data-view="build">
-      <span class="tab-num">02</span><span>Build</span>
-    </button>
-    <button class="tab" data-view="export">
-      <span class="tab-num">03</span><span>Export</span>
-    </button>
-  </nav>
-
-  <div class="topbar-actions">
-    <button class="btn btn-ghost" id="btn-import">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Import
-    </button>
-    <button class="btn btn-ghost" id="btn-export-json">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      Save Project
-    </button>
-    <input type="file" id="file-input" accept=".json" style="display:none">
-  </div>
 </header>
 
 <main id="app">
-  <!-- ============================================================== -->
-  <!-- CONFIGURATION VIEW                                              -->
-  <!-- ============================================================== -->
-  <section class="view view-configure active" id="view-configure">
-    <div class="view-grid">
+    <!-- ============================================================== -->
+    <!-- CONFIGURATION VIEW                                              -->
+    <!-- ============================================================== -->
+    <section class="view view-configure active" id="view-configure">
+        <div class="view-grid">
 
-      <!-- Subsystems -->
-      <div class="panel">
-        <div class="panel-head">
-          <div>
-            <div class="panel-eyebrow">Section · A</div>
-            <h2 class="panel-title">Subsystems</h2>
-            <p class="panel-desc">Define the subsystems on your robot and the command-producing methods they expose.</p>
-          </div>
-          <button class="btn btn-primary" id="add-subsystem">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Subsystem
-          </button>
-        </div>
-        <div class="subsystem-list" id="subsystem-list"></div>
-        <div class="empty-state" id="subsystem-empty">
-          <div class="empty-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h18"/></svg>
-          </div>
-          <div class="empty-title">No subsystems defined</div>
-          <div class="empty-desc">Start by adding a subsystem like <code>Drivetrain</code> or <code>Arm</code>.</div>
-        </div>
-      </div>
-
-      <!-- Controllers -->
-      <div class="panel">
-        <div class="panel-head">
-          <div>
-            <div class="panel-eyebrow">Section · B</div>
-            <h2 class="panel-title">Controllers</h2>
-            <p class="panel-desc">Driver stations available for binding actions to commands.</p>
-          </div>
-          <button class="btn btn-primary" id="add-controller">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Controller
-          </button>
-        </div>
-        <div class="controller-list" id="controller-list"></div>
-      </div>
-
-      <!-- Robot info -->
-      <div class="panel">
-        <div class="panel-head">
-          <div>
-            <div class="panel-eyebrow">Section · C</div>
-            <h2 class="panel-title">Project</h2>
-            <p class="panel-desc">Metadata used when generating <code>Commands.java</code>.</p>
-          </div>
-        </div>
-        <div class="form-grid">
-          <label class="field">
-            <span>Java Package</span>
-            <input type="text" id="cfg-package" value="frc.robot" spellcheck="false">
-          </label>
-          <label class="field">
-            <span>Class Name</span>
-            <input type="text" id="cfg-classname" value="Commands" spellcheck="false">
-          </label>
-          <label class="field">
-            <span>Team Number</span>
-            <input type="text" id="cfg-team" placeholder="e.g. 1234" spellcheck="false">
-          </label>
-        </div>
-      </div>
-
-      <div class="panel panel-quickstart">
-        <div class="qs-grid">
-          <div class="qs-step">
-            <div class="qs-num">1</div>
-            <div class="qs-text"><strong>Define</strong> subsystems and the <code>Supplier&lt;Command&gt;</code> methods they expose.</div>
-          </div>
-          <div class="qs-step">
-            <div class="qs-num">2</div>
-            <div class="qs-text"><strong>Compose</strong> in the visual builder using sequence, parallel, race & deadline blocks.</div>
-          </div>
-          <div class="qs-step">
-            <div class="qs-num">3</div>
-            <div class="qs-text"><strong>Bind</strong> controller triggers and copy the generated Java.</div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- ============================================================== -->
-  <!-- BUILDER VIEW                                                    -->
-  <!-- ============================================================== -->
-  <section class="view view-build" id="view-build">
-    <div class="builder-shell">
-      <aside class="builder-side">
-        <div class="side-section">
-          <div class="side-eyebrow">Controllers</div>
-          <div class="side-binding-list" id="controller-tabs"></div>
-          <!-- Controllers are added in Configure; drag binding blocks onto the canvas -->
-        </div>
-
-        <div class="side-section">
-          <div class="side-eyebrow">Command Functions</div>
-          <div class="side-binding-list" id="function-tabs"></div>
-          <button class="btn btn-block btn-ghost" id="add-function">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New Function
-          </button>
-        </div>
-
-        <div class="side-section">
-          <div class="side-eyebrow">Tips</div>
-          <div class="tips">
-            <div class="tip"><span class="tip-key">⌘ Drag</span> blocks from the left palette</div>
-            <div class="tip"><span class="tip-key">Right-click</span> a block to duplicate</div>
-            <div class="tip"><span class="tip-key">DEL</span> removes selected block</div>
-          </div>
-        </div>
-      </aside>
-
-      <div class="builder-main">
-        <div class="builder-toolbar">
-          <div class="builder-binding-info" id="builder-binding-info">
-            <div class="bbi-line">
-              <span class="bbi-label" id="bbi-label-1">Binding</span>
-              <span class="bbi-value" id="bbi-name">—</span>
+            <!-- Subsystems -->
+            <div class="panel">
+                <div class="panel-head">
+                    <div>
+                        <div class="panel-eyebrow">Section · A</div>
+                        <h2 class="panel-title">Subsystems</h2>
+                        <p class="panel-desc">Define the subsystems on your robot and the command-producing methods they
+                            expose.</p>
+                    </div>
+                    <button class="btn btn-primary" id="add-subsystem">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.5">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Add Subsystem
+                    </button>
+                </div>
+                <div class="subsystem-list" id="subsystem-list"></div>
+                <div class="empty-state" id="subsystem-empty">
+                    <div class="empty-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M9 3v18M3 9h18"/>
+                        </svg>
+                    </div>
+                    <div class="empty-title">No subsystems defined</div>
+                    <div class="empty-desc">Start by adding a subsystem like <code>Drivetrain</code> or <code>Arm</code>.
+                    </div>
+                </div>
             </div>
-            <div class="bbi-line">
-              <span class="bbi-label" id="bbi-label-2">Trigger</span>
-              <code class="bbi-code" id="bbi-trigger">—</code>
+
+            <!-- Controllers -->
+            <div class="panel">
+                <div class="panel-head">
+                    <div>
+                        <div class="panel-eyebrow">Section · B</div>
+                        <h2 class="panel-title">Controllers</h2>
+                        <p class="panel-desc">The controllers that are available for binding actions to commands.</p>
+                    </div>
+                    <button class="btn btn-primary" id="add-controller">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.5">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Add Controller
+                    </button>
+                </div>
+                <div class="controller-list" id="controller-list"></div>
             </div>
-          </div>
-          <div class="builder-toolbar-actions">
-            <button class="btn btn-ghost btn-sm" id="btn-clear-blocks">Clear canvas</button>
-            <button class="btn btn-ghost btn-sm" id="btn-preview">Preview Java →</button>
-          </div>
-        </div>
-        <div id="blockly-area"></div>
-      </div>
 
-      <aside class="builder-preview" id="builder-preview">
-        <div class="preview-head">
-          <div class="side-eyebrow">Live preview · Java</div>
-        </div>
-        <pre class="code-block"><code class="language-java" id="binding-preview-code">// Build a command on the canvas to see the generated Java.</code></pre>
-      </aside>
-    </div>
-  </section>
+            <!-- Robot info -->
+            <div class="panel">
+                <div class="panel-head">
+                    <div>
+                        <div class="panel-eyebrow">Section · C</div>
+                        <h2 class="panel-title">Project</h2>
+                        <p class="panel-desc">Metadata used when generating <code>Commands.java</code>.</p>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <label class="field">
+                        <span>Java Package</span>
+                        <input type="text" id="cfg-package" value="frc.robot" spellcheck="false">
+                    </label>
+                    <label class="field">
+                        <span>Class Name</span>
+                        <input type="text" id="cfg-classname" value="Commands" spellcheck="false">
+                    </label>
+                    <label class="field">
+                        <span>Team Number</span>
+                        <input type="text" id="cfg-team" placeholder="e.g. 1234" spellcheck="false">
+                    </label>
+                </div>
+            </div>
 
-  <!-- ============================================================== -->
-  <!-- EXPORT VIEW                                                     -->
-  <!-- ============================================================== -->
-  <section class="view view-export" id="view-export">
-    <div class="export-shell">
-      <div class="export-head">
-        <div>
-          <div class="panel-eyebrow">Output</div>
-          <h2 class="panel-title">Generated Java</h2>
-          <p class="panel-desc">Drop this into your <code>src/main/java</code> tree. Methods called on subsystems must return a <code>Command</code> or be wired through their factory methods.</p>
+            <div class="panel panel-quickstart">
+                <div class="qs-grid">
+                    <div class="qs-step">
+                        <div class="qs-num">1</div>
+                        <div class="qs-text"><strong>Describe</strong> each subsystem on your robot and the actions and
+                            yes/no questions it offers.
+                        </div>
+                    </div>
+                    <div class="qs-step">
+                        <div class="qs-num">2</div>
+                        <div class="qs-text"><strong>Build</strong> by snapping blocks together — combine actions in
+                            order, at the same time, or as a race.
+                        </div>
+                    </div>
+                    <div class="qs-step">
+                        <div class="qs-num">3</div>
+                        <div class="qs-text"><strong>Bind</strong> each routine to a controller button and copy the
+                            generated Java.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
-        <div class="export-actions">
-          <button class="btn btn-ghost" id="btn-copy-code">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            Copy
-          </button>
-          <button class="btn btn-primary" id="btn-download-code">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Download .java
-          </button>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- BUILDER VIEW                                                    -->
+    <!-- ============================================================== -->
+    <section class="view view-build" id="view-build">
+        <div class="builder-shell">
+            <aside class="builder-side">
+                <div class="side-section">
+                    <div class="side-eyebrow">Controllers</div>
+                    <div class="side-binding-list" id="controller-tabs"></div>
+                    <!-- Controllers are added in Configure; drag binding blocks onto the canvas -->
+                </div>
+
+                <div class="side-section">
+                    <div class="side-eyebrow">Command Functions</div>
+                    <div class="side-binding-list" id="function-tabs"></div>
+                    <button class="btn btn-block btn-ghost" id="add-function">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.5">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        New Function
+                    </button>
+                </div>
+
+                <div class="side-section">
+                    <div class="side-eyebrow">Tips</div>
+                    <div class="tips">
+                        <div class="tip"><span class="tip-key">⌘ Drag</span> blocks from the left palette</div>
+                        <div class="tip"><span class="tip-key">Right-click</span> a block to duplicate</div>
+                        <div class="tip"><span class="tip-key">DEL</span> removes selected block</div>
+                    </div>
+                </div>
+            </aside>
+
+            <div class="builder-main">
+                <div class="builder-toolbar">
+                    <div class="builder-binding-info" id="builder-binding-info">
+                        <div class="bbi-line">
+                            <span class="bbi-label" id="bbi-label-1">Binding</span>
+                            <span class="bbi-value" id="bbi-name">—</span>
+                        </div>
+                        <div class="bbi-line">
+                            <span class="bbi-label" id="bbi-label-2">Trigger</span>
+                            <code class="bbi-code" id="bbi-trigger">—</code>
+                        </div>
+                    </div>
+                    <div class="builder-toolbar-actions">
+                        <button class="btn btn-ghost btn-sm" id="btn-clear-blocks">Clear canvas</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-preview">Preview Java →</button>
+                    </div>
+                </div>
+                <div id="blockly-area"></div>
+            </div>
+
+            <aside class="builder-preview" id="builder-preview">
+                <div class="preview-head">
+                    <div class="side-eyebrow">Live preview · Java</div>
+                </div>
+                <pre class="code-block"><code class="language-java" id="binding-preview-code">// Build a command on the canvas to see the generated Java.</code></pre>
+            </aside>
         </div>
-      </div>
-      <pre class="code-block code-block-large"><code class="language-java" id="full-code-output">// Configure and build first, then come back here.</code></pre>
-    </div>
-  </section>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- EXPORT VIEW                                                     -->
+    <!-- ============================================================== -->
+    <section class="view view-export" id="view-export">
+        <div class="export-shell">
+            <div class="export-head">
+                <div>
+                    <div class="panel-eyebrow">Output</div>
+                    <h2 class="panel-title">Generated Java</h2>
+                    <p class="panel-desc">Drop this into your <code>src/main/java</code> tree. Methods called on
+                        subsystems must return a <code>Command</code> or be wired through their factory methods.</p>
+                </div>
+                <div class="export-actions">
+                    <button class="btn btn-ghost" id="btn-copy-code">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                        Copy
+                    </button>
+                    <button class="btn btn-primary" id="btn-download-code">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download .java
+                    </button>
+                </div>
+            </div>
+            <pre class="code-block code-block-large"><code class="language-java" id="full-code-output">// Configure and build first, then come back here.</code></pre>
+        </div>
+    </section>
 </main>
 
 <!-- Modal templates -->
 <div class="modal" id="modal-backdrop">
-  <div class="modal-content" id="modal-content"></div>
+    <div class="modal-content" id="modal-content"></div>
 </div>
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script src="app.js"></script>
+<!-- Core (must come first) -->
+<script src="src/core/namespace.js"></script>
+<script src="src/core/util.js"></script>
+<script src="src/core/state.js"></script>
+
+<!-- Model getters -->
+<script src="src/model/subsystems.js"></script>
+<script src="src/model/controllers.js"></script>
+<script src="src/model/functions.js"></script>
+
+<!-- Blockly setup (theme/toolbox before workspace) -->
+<script src="src/blockly/buttons.js"></script>
+<script src="src/blockly/theme.js"></script>
+<script src="src/blockly/toolbox.js"></script>
+<script src="src/blockly/workspace.js"></script>
+
+<!-- Custom blocks + Java generator (depend on model + buttons) -->
 <script src="custom_blocks.js"></script>
 <script src="java_generator.js"></script>
+
+<!-- Code generation (depends on java_generator) -->
+<script src="src/codegen/padcrafter.js"></script>
+<script src="src/codegen/highlight.js"></script>
+<script src="src/codegen/orchestrator.js"></script>
+
+<!-- UI chrome + views -->
+<script src="src/views/chrome/toast.js"></script>
+<script src="src/views/chrome/modal.js"></script>
+<script src="src/views/configure-view.js"></script>
+<script src="src/views/build-view.js"></script>
+<script src="src/views/export-view.js"></script>
+<script src="src/views/nav.js"></script>
+
+<!-- I/O + boot (last) -->
+<script src="src/io/project-io.js"></script>
+<script src="src/boot.js"></script>
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+    <mask id="chevron-right">
+        <path d="M6 4l4 4-4 4" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round"
+              stroke-linejoin="round"/>
+    </mask>
+    <mask id="chevron-left">
+        <path d="M10 4l-4 4 4 4" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round"
+              stroke-linejoin="round"/>
+    </mask>
+    <mask id="chevron-down">
+        <path d="M4 6l4 4 4-4" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round"
+              stroke-linejoin="round"/>
+    </mask>
+</svg>
 </body>
 </html>
