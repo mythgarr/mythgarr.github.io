@@ -10,12 +10,15 @@
      * BOOT
      * ================================================================ */
     function boot() {
-        if (!BlocklyFRC.restore()) seedDefaults();
+        const restored = BlocklyFRC.restore();
+        if (!restored) BlocklyFRC.seedDefaults();
         const state = BlocklyFRC.state;
 
         /* tabs */
         BlocklyFRC.$$('.tab').forEach(t => t.addEventListener('click', () => BlocklyFRC.switchView(t.dataset.view)));
 
+        /* Default to the configure view for the first visit, build afterward. */
+        if (restored) BlocklyFRC.switchView('build');
         /* config view */
         BlocklyFRC.$('#add-subsystem').addEventListener('click', () => {
             const n = state.subsystems.length + 1;
