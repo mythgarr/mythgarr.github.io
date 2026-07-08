@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PID Arm Simulator — In-Browser Python</title>
+<style>
+  :root {
+    --bg: #14171a;
+    --card: #1e2226;
+    --border: #33383e;
+    --accent: #4fd18a;
+    --accent2: #58a6ff;
+    --text: #e6e8eb;
+    --muted: #9aa4ad;
+    --error: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    margin: 0;
+    padding: 0 0 60px 0;
+  }
+  header {
+    padding: 24px 20px 16px 20px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+  header h1 {
+    margin: 0 0 6px 0;
+    font-size: 1.4rem;
+  }
+  #status {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  #status.ready { color: var(--accent); }
+  #status.error { color: var(--error); }
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .nav button {
+    background: #30363d;
+    color: var(--text);
+  }
+  #segment-indicator {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  section.concept {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  section.concept h2 {
+    margin-top: 0;
+    font-size: 1.15rem;
+  }
+  section.concept p.instructions {
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  .code-editor {
+    width: 100%;
+    height: 260px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .controls {
+    margin: 10px 0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  button {
+    background: var(--accent2);
+    color: #08111c;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  button.run { background: var(--accent); }
+  button.secondary { background: #30363d; color: var(--text); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  canvas {
+    display: block;
+    margin-top: 12px;
+    background: #000;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    max-width: 100%;
+  }
+  pre.error {
+    color: var(--error);
+    background: #2a1414;
+    border: 1px solid #5a2323;
+    border-radius: 6px;
+    padding: 10px;
+    white-space: pre-wrap;
+    font-size: 0.85rem;
+    margin-top: 8px;
+    display: none;
+  }
+  .hint {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PID Arm Simulator</h1>
+  <div id="status">Loading Python and the code editor… this can take 10–20 seconds the first time.</div>
+</header>
+
+<main>
+
+<div class="nav">
+  <button id="prevBtn" disabled onclick="prevSegment()">◀ Previous</button>
+  <span id="segment-indicator"></span>
+  <button id="nextBtn" disabled onclick="nextSegment()">Next ▶</button>
+</div>
+
+<section class="concept">
+  <h2 id="segment-title"></h2>
+  <p class="instructions" id="segment-instructions"></p>
+  <div class="code-editor" id="editor-container"></div>
+  <div class="controls">
+    <button class="run run-btn" disabled onclick="runCurrent()">Run</button>
+    <button class="run-btn" disabled onclick="stopAll()">Stop</button>
+    <button class="secondary run-btn" disabled onclick="resetCurrent()">Reset code</button>
+    <span class="hint">Click the canvas first: ← / → = target angle, ↑ / ↓ = mass</span>
+  </div>
+  <canvas id="pygame-canvas" width="800" height="600" tabindex="0"></canvas>
+  <pre class="error" id="error-box"></pre>
+</section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.53.0/min/vs/loader.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.js"></script>
+<script>
+// ---------------------------------------------------------------
+// Lesson segments: title, instructions, and starter code. Models
+// for every segment are created once when Monaco finishes loading;
+// Next/Previous swap which model the single editor displays.
+// Mass and target-angle controls live in the hidden engine below,
+// not in this student-facing code.
+// ---------------------------------------------------------------
+const SEGMENTS = [
+  {
+    id: 'none',
+    title: '1. No Control at All',
+    instructions: `Click Run, then click the canvas and try the arrow keys. Nothing should move yet — this function always says "don't push."`,
+    code: `def compute_output(error, dt):
+    return 0.0
+`
+  },
+  {
+    id: 'p',
+    title: '2. Proportional (P) Control',
+    instructions: 'The arm should swing toward the target and settle <i>short</i> of it. Try raising <code>kP</code>, or use Up/Down to add mass and watch the gap change.',
+    code: `kP = 4.0
+
+def compute_output(error, dt):
+    output = kP * error
+    output = max(-1.0, min(1.0, output))
+    return output
+`
+  },
+  {
+    id: 'pi',
+    title: '3. Adding Integral (I)',
+    instructions: 'Watch closely: it should approach the same spot as before, then slowly creep the rest of the way to the target.',
+    code: `kP = 4.0
+kI = 2.0
+
+integral = 0.0
+
+def compute_output(error, dt):
+    global integral
+    integral += error * dt
+    output = kP * error + kI * integral
+    output = max(-1.0, min(1.0, output))
+    return output
+`
+  },
+  {
+    id: 'pid',
+    title: '4. Adding Derivative (D)',
+    instructions: 'Compare this against P+I by toggling <code>kD</code> between 0 and 0.5 — it should settle with less wobble.',
+    code: `kP = 4.0
+kI = 2.0
+kD = 0.5
+
+integral = 0.0
+previous_error = 0.0
+
+def compute_output(error, dt):
+    global integral, previous_error
+    integral += error * dt
+    derivative = (error - previous_error) / dt if dt > 0 else 0
+    previous_error = error
+    output = kP * error + kI * integral + kD * derivative
+    output = max(-1.0, min(1.0, output))
+    return output
+`
+  },
+  {
+    id: 'tune',
+    title: '5. Free Tuning Challenge',
+    instructions: `Get the arm to reach a new target in under 2 seconds with as little wobble as possible. Move the target with Left/Right, change the arm's mass with Up/Down mid-run, and hand-tune all three gains to compensate.`,
+    code: `# Try your own values! Move the target with Left/Right, and
+# change the arm's mass with Up/Down mid-run to see how it
+# affects the tuning you need.
+kP = 4.0
+kI = 2.0
+kD = 0.5
+
+integral = 0.0
+previous_error = 0.0
+
+def compute_output(error, dt):
+    global integral, previous_error
+    integral += error * dt
+    derivative = (error - previous_error) / dt if dt > 0 else 0
+    previous_error = error
+    output = kP * error + kI * integral + kD * derivative
+    output = max(-1.0, min(1.0, output))
+    return output
+`
+  }
+];
+
+// ---------------------------------------------------------------
+// Same shim used in the LED lesson page — a small canvas-backed
+// stand-in for pygame, implementing only what these lessons use.
+// ---------------------------------------------------------------
+const SHIM_SRC = `
+import sys, types, time, math
+import js
+from pyodide.ffi import create_proxy
+
+_pygame = types.ModuleType("pygame")
+
+_pygame.QUIT = "QUIT"
+_pygame.KEYDOWN = "KEYDOWN"
+_pygame.K_LEFT = "ArrowLeft"
+_pygame.K_RIGHT = "ArrowRight"
+_pygame.K_UP = "ArrowUp"
+_pygame.K_DOWN = "ArrowDown"
+_pygame.K_SPACE = " "
+
+_state = {
+    "ctx": None,
+    "event_queue": [],
+    "should_stop": False,
+    "generation": 0,
+    "keydown_registered": False,
+}
+
+class _Event:
+    def __init__(self, type_, **kwargs):
+        self.type = type_
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+_ARROW_KEYS = {"ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"}
+
+def _on_keydown(evt):
+    active = js.document.activeElement
+    tag = getattr(active, "tagName", "") if active else ""
+    if tag == "TEXTAREA" or tag == "INPUT":
+        return
+    if evt.key in _ARROW_KEYS:
+        evt.preventDefault()
+    _state["event_queue"].append(_Event(_pygame.KEYDOWN, key=evt.key))
+
+_keydown_proxy = create_proxy(_on_keydown)
+
+def _to_css(color):
+    if len(color) >= 4:
+        r, g, b, a = color[0], color[1], color[2], color[3] / 255
+        return f"rgba({r},{g},{b},{a})"
+    r, g, b = color[0], color[1], color[2]
+    return f"rgb({r},{g},{b})"
+
+def _begin_run():
+    _state["generation"] += 1
+    _state["should_stop"] = False
+    _state["event_queue"] = []
+    return _state["generation"]
+
+def _still_current(gen):
+    return gen == _state["generation"]
+
+def _request_stop():
+    _state["should_stop"] = True
+
+def init():
+    if not _state["keydown_registered"]:
+        js.window.addEventListener("keydown", _keydown_proxy)
+        _state["keydown_registered"] = True
+
+def quit():
+    pass
+
+_pygame.init = init
+_pygame.quit = quit
+_pygame._begin_run = _begin_run
+_pygame._still_current = _still_current
+_pygame._request_stop = _request_stop
+
+class _Surface:
+    def __init__(self, w, h):
+        self.w, self.h = w, h
+    def fill(self, color):
+        ctx = _state["ctx"]
+        ctx.fillStyle = _to_css(color)
+        ctx.fillRect(0, 0, self.w, self.h)
+    def blit(self, surf, pos):
+        surf._draw_at(pos)
+
+class _Display:
+    def set_mode(self, size):
+        w, h = size
+        canvas_id = js.window.pygame_canvas_id
+        canvas = js.document.getElementById(canvas_id)
+        canvas.width = w
+        canvas.height = h
+        _state["ctx"] = canvas.getContext("2d")
+        return _Surface(w, h)
+    def set_caption(self, title):
+        pass
+    def flip(self):
+        pass
+
+_pygame.display = _Display()
+
+class _Draw:
+    def rect(self, surface, color, rect, width=0):
+        x, y, w, h = rect
+        ctx = _state["ctx"]
+        if width == 0:
+            ctx.fillStyle = _to_css(color)
+            ctx.fillRect(x, y, w, h)
+        else:
+            ctx.strokeStyle = _to_css(color)
+            ctx.lineWidth = width
+            ctx.strokeRect(x, y, w, h)
+    def circle(self, surface, color, pos, radius, width=0):
+        x, y = pos
+        ctx = _state["ctx"]
+        ctx.beginPath()
+        ctx.arc(x, y, radius, 0, 2 * math.pi)
+        if width == 0:
+            ctx.fillStyle = _to_css(color)
+            ctx.fill()
+        else:
+            ctx.strokeStyle = _to_css(color)
+            ctx.lineWidth = width
+            ctx.stroke()
+    def line(self, surface, color, start, end, width=1):
+        ctx = _state["ctx"]
+        ctx.beginPath()
+        ctx.moveTo(start[0], start[1])
+        ctx.lineTo(end[0], end[1])
+        ctx.strokeStyle = _to_css(color)
+        ctx.lineWidth = width
+        ctx.stroke()
+
+_pygame.draw = _Draw()
+
+class _TextSurface:
+    def __init__(self, text, color, size):
+        self.text = text
+        self.color = color
+        self.size = size
+    def _draw_at(self, pos):
+        ctx = _state["ctx"]
+        ctx.fillStyle = _to_css(self.color)
+        ctx.font = f"{self.size}px monospace"
+        ctx.textBaseline = "top"
+        ctx.fillText(self.text, pos[0], pos[1])
+
+class _Font:
+    def __init__(self, size):
+        self.size = size
+    def render(self, text, antialias, color):
+        return _TextSurface(text, color, self.size)
+
+class _FontModule:
+    def SysFont(self, name, size):
+        return _Font(size)
+
+_pygame.font = _FontModule()
+
+class _EventModule:
+    def get(self):
+        evts = list(_state["event_queue"])
+        _state["event_queue"] = []
+        if _state["should_stop"]:
+            evts.append(_Event(_pygame.QUIT))
+            _state["should_stop"] = False
+        return evts
+
+_pygame.event = _EventModule()
+
+class _Clock:
+    def __init__(self):
+        self._last = None
+    def tick(self, fps=None):
+        now = time.time()
+        if self._last is None:
+            dt_ms = 1000.0 / (fps or 60)
+        else:
+            dt_ms = (now - self._last) * 1000.0
+        self._last = now
+        return dt_ms
+
+class _TimeModule:
+    def Clock(self):
+        return _Clock()
+
+_pygame.time = _TimeModule()
+
+sys.modules["pygame"] = _pygame
+`;
+
+// ---------------------------------------------------------------
+// The engine: hidden boilerplate, with angle-wrapped error and
+// Up/Down mass control. Physical arm length is kept separate from
+// the on-screen pixel length.
+// ---------------------------------------------------------------
+const PID_ENGINE_SRC = `
+import asyncio, math
+import pygame
+
+async def _run():
+    gen = pygame._begin_run()
+    pygame.init()
+    WIDTH, HEIGHT = 800, 600
+    PIVOT = (WIDTH // 2, HEIGHT // 2)
+    ARM_LENGTH = 200        # pixels, for drawing only
+    PHYSICAL_LENGTH = 2.0   # meters, used in the physics
+    MASS = 2.0              # kg; adjustable live with Up/Down
+    GRAVITY = 9.8
+    MAX_MOTOR_TORQUE = 40.0
+    DAMPING = 0.5
+
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    font = pygame.font.SysFont(None, 28)
+    clock = pygame.time.Clock()
+
+    theta = 0.0
+    theta_dot = 0.0
+    setpoint_deg = 90.0
+
+    def wrap_angle(a):
+        return (a + math.pi) % (2 * math.pi) - math.pi
+
+    while pygame._still_current(gen):
+        raw_dt = clock.tick(60) / 1000.0
+        dt = raw_dt if 0 < raw_dt < 0.25 else 1/60
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_LEFT:
+                    setpoint_deg -= 5
+                if event.key == pygame.K_RIGHT:
+                    setpoint_deg += 5
+                if event.key == pygame.K_UP:
+                    MASS = round(MASS + 0.1, 2)
+                if event.key == pygame.K_DOWN:
+                    MASS = max(0.1, round(MASS - 0.1, 2))
+
+        setpoint_rad = math.radians(setpoint_deg)
+        error = wrap_angle(setpoint_rad - theta)
+
+        motor_power = compute_output(error, dt)
+        motor_power = max(-1.0, min(1.0, motor_power))
+
+        torque_motor = motor_power * MAX_MOTOR_TORQUE
+        torque_gravity = -MASS * GRAVITY * PHYSICAL_LENGTH * math.sin(theta)
+        moment_of_inertia = MASS * PHYSICAL_LENGTH ** 2
+
+        theta_ddot = (torque_motor + torque_gravity) / moment_of_inertia - DAMPING * theta_dot
+        theta_dot += theta_ddot * dt
+        theta += theta_dot * dt
+
+        screen.fill((25, 25, 25))
+        arm_x = PIVOT[0] + ARM_LENGTH * math.sin(theta)
+        arm_y = PIVOT[1] + ARM_LENGTH * math.cos(theta)
+        pygame.draw.circle(screen, (200, 200, 200), PIVOT, 8)
+        pygame.draw.line(screen, (0, 200, 255), PIVOT, (arm_x, arm_y), 6)
+        pygame.draw.circle(screen, (255, 80, 80), (int(arm_x), int(arm_y)), 20)
+
+        target_x = PIVOT[0] + ARM_LENGTH * math.sin(setpoint_rad)
+        target_y = PIVOT[1] + ARM_LENGTH * math.cos(setpoint_rad)
+        pygame.draw.circle(screen, (100, 255, 100), (int(target_x), int(target_y)), 6, 2)
+
+        text = font.render(
+            f"Setpoint: {setpoint_deg:.0f}   Error: {math.degrees(error):.1f}   Power: {motor_power:.2f}   Mass: {MASS:.1f}kg",
+            True, (255, 255, 255))
+        screen.blit(text, (10, 10))
+        screen.blit(font.render("Click canvas: Left/Right = target, Up/Down = mass", True, (180, 180, 180)), (10, 40))
+
+        pygame.display.flip()
+        await asyncio.sleep(1/60)
+
+asyncio.ensure_future(_run())
+`;
+
+// ---------------------------------------------------------------
+// Readiness tracking, navigation state, and the single editor.
+// ---------------------------------------------------------------
+let pyodideReady = false;
+let monacoReady = false;
+let pyodide = null;
+let editor = null;
+const models = {};
+let currentIndex = 0;
+
+function updateStatus() {
+  const statusEl = document.getElementById('status');
+  if (pyodideReady && monacoReady) {
+    statusEl.textContent = 'Ready! Use Run to try the current code, or Next/Previous to move between concepts.';
+    statusEl.className = 'ready';
+    document.querySelectorAll('.run-btn').forEach(b => b.disabled = false);
+    updateNavButtons();
+  } else {
+    const waiting = [];
+    if (!monacoReady) waiting.push('code editor');
+    if (!pyodideReady) waiting.push('Python');
+    statusEl.textContent = 'Loading ' + waiting.join(' and ') + '… this can take 10–20 seconds the first time.';
+  }
+}
+
+function updateNavButtons() {
+  const ready = pyodideReady && monacoReady;
+  document.getElementById('prevBtn').disabled = !ready || currentIndex === 0;
+  document.getElementById('nextBtn').disabled = !ready || currentIndex === SEGMENTS.length - 1;
+}
+
+function resetCanvas() {
+  const canvas = document.getElementById('pygame-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function renderSegment(i) {
+  const seg = SEGMENTS[i];
+  document.getElementById('segment-title').textContent = seg.title;
+  document.getElementById('segment-instructions').innerHTML = seg.instructions;
+  document.getElementById('segment-indicator').textContent = (i + 1) + ' / ' + SEGMENTS.length;
+  if (editor && models[seg.id]) editor.setModel(models[seg.id]);
+  document.getElementById('error-box').style.display = 'none';
+  updateNavButtons();
+  if (pyodideReady) stopAll();
+  resetCanvas();
+}
+
+function nextSegment() {
+  if (currentIndex < SEGMENTS.length - 1) {
+    currentIndex++;
+    renderSegment(currentIndex);
+  }
+}
+
+function prevSegment() {
+  if (currentIndex > 0) {
+    currentIndex--;
+    renderSegment(currentIndex);
+  }
+}
+
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.53.0/min/vs' } });
+require(['vs/editor/editor.main'], function () {
+  for (const seg of SEGMENTS) {
+    models[seg.id] = monaco.editor.createModel(seg.code, 'python');
+  }
+  editor = monaco.editor.create(document.getElementById('editor-container'), {
+    theme: 'vs-dark',
+    minimap: { enabled: false },
+    automaticLayout: true,
+    fontSize: 14,
+    scrollBeyondLastLine: false,
+  });
+  editor.setModel(models[SEGMENTS[0].id]);
+  monacoReady = true;
+  renderSegment(currentIndex);
+  updateStatus();
+});
+
+async function setupPyodide() {
+  try {
+    pyodide = await loadPyodide();
+    await pyodide.runPythonAsync(SHIM_SRC);
+    pyodideReady = true;
+    updateStatus();
+  } catch (err) {
+    document.getElementById('status').textContent = 'Failed to load Python: ' + err.message;
+    document.getElementById('status').className = 'error';
+  }
+}
+setupPyodide();
+
+function resetCurrent() {
+  const seg = SEGMENTS[currentIndex];
+  if (models[seg.id]) models[seg.id].setValue(seg.code);
+}
+
+async function runCurrent() {
+  if (!pyodideReady || !monacoReady) return;
+  const errorEl = document.getElementById('error-box');
+  errorEl.style.display = 'none';
+  window.pygame_canvas_id = 'pygame-canvas';
+  const studentCode = editor.getValue();
+  const fullCode = studentCode + '\n' + PID_ENGINE_SRC;
+  try {
+    await pyodide.runPythonAsync(fullCode);
+    document.getElementById('pygame-canvas').focus();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+}
+
+function stopAll() {
+  if (!pyodideReady) return;
+  pyodide.runPython('import pygame; pygame._request_stop()');
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Virtual LED Strip — In-Browser Python</title>
+<style>
+  :root {
+    --bg: #14171a;
+    --card: #1e2226;
+    --border: #33383e;
+    --accent: #4fd18a;
+    --accent2: #58a6ff;
+    --text: #e6e8eb;
+    --muted: #9aa4ad;
+    --error: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    margin: 0;
+    padding: 0 0 60px 0;
+  }
+  header {
+    padding: 24px 20px 16px 20px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+  header h1 {
+    margin: 0 0 6px 0;
+    font-size: 1.4rem;
+  }
+  #status {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  #status.ready { color: var(--accent); }
+  #status.error { color: var(--error); }
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .nav button {
+    background: #30363d;
+    color: var(--text);
+  }
+  #segment-indicator {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  section.concept {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  section.concept h2 {
+    margin-top: 0;
+    font-size: 1.15rem;
+  }
+  section.concept p.instructions {
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  .code-editor {
+    width: 100%;
+    height: 260px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .controls {
+    margin: 10px 0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  button {
+    background: var(--accent2);
+    color: #08111c;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  button.run { background: var(--accent); }
+  button.secondary { background: #30363d; color: var(--text); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  canvas {
+    display: block;
+    margin-top: 12px;
+    background: #000;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    max-width: 100%;
+  }
+  pre.error {
+    color: var(--error);
+    background: #2a1414;
+    border: 1px solid #5a2323;
+    border-radius: 6px;
+    padding: 10px;
+    white-space: pre-wrap;
+    font-size: 0.85rem;
+    margin-top: 8px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Virtual LED Strip</h1>
+  <div id="status">Loading Python and the code editor… this can take 10–20 seconds the first time.</div>
+</header>
+
+<main>
+
+<div class="nav">
+  <button id="prevBtn" disabled onclick="prevSegment()">◀ Previous</button>
+  <span id="segment-indicator"></span>
+  <button id="nextBtn" disabled onclick="nextSegment()">Next ▶</button>
+</div>
+
+<section class="concept">
+  <h2 id="segment-title"></h2>
+  <p class="instructions" id="segment-instructions"></p>
+  <div class="code-editor" id="editor-container"></div>
+  <div class="controls">
+    <button class="run run-btn" disabled onclick="runCurrent()">Run</button>
+    <button class="run-btn" disabled onclick="stopAll()">Stop</button>
+    <button class="secondary run-btn" disabled onclick="resetCurrent()">Reset code</button>
+  </div>
+  <canvas id="pygame-canvas" width="900" height="200"></canvas>
+  <pre class="error" id="error-box"></pre>
+</section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.53.0/min/vs/loader.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.js"></script>
+<script>
+// ---------------------------------------------------------------
+// Color constants shared by every segment's starter code.
+// ---------------------------------------------------------------
+const COLOR_CONSTANTS = `RED = [255, 0, 0]
+GREEN = [0, 255, 0]
+BLUE = [0, 0, 255]
+YELLOW = [255, 255, 0]
+WHITE = [255, 255, 255]
+OFF = [0, 0, 0]
+
+`;
+
+// ---------------------------------------------------------------
+// Lesson segments: title, instructions, and starter code. Models
+// for every segment are created once when Monaco finishes loading;
+// Next/Previous swap which model the single editor displays.
+// ---------------------------------------------------------------
+const SEGMENTS = [
+  {
+    id: 'solid',
+    title: '1. Solid Color',
+    instructions: 'Click <b>Run</b> to see what this code does. Try changing the numbers and running it again.',
+    code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
+    for led in led_data:
+        led[0], led[1], led[2] = r, g, b
+
+def update(led_data, frame):
+    solid_color(led_data, 255, 0, 0)
+    # You could also write this using the color constant above:
+    # solid_color(led_data, *RED)
+`
+  },
+  {
+    id: 'stripes',
+    title: '2. Stripes',
+    instructions: 'Same idea, one new function: <code>stripes()</code>. Try changing <code>stripe_width</code>, or swap in the other color constants defined at the top.',
+    code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
+    for led in led_data:
+        led[0], led[1], led[2] = r, g, b
+
+def stripes(led_data, color1, color2, stripe_width):
+    for i, led in enumerate(led_data):
+        if (i // stripe_width) % 2 == 0:
+            led[0], led[1], led[2] = color1
+        else:
+            led[0], led[1], led[2] = color2
+
+def update(led_data, frame):
+    stripes(led_data, RED, BLUE, 5)
+`
+  },
+  {
+    id: 'rainbow',
+    title: '3. Rainbow',
+    instructions: 'Watch it scroll. Try changing <code>i * 3</code> to a bigger or smaller number, or how fast <code>frame</code> increases.',
+    code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
+    for led in led_data:
+        led[0], led[1], led[2] = r, g, b
+
+def rainbow(led_data, offset):
+    import colorsys
+    for i, led in enumerate(led_data):
+        hue = ((offset + i * 3) % 180) / 180
+        r, g, b = colorsys.hsv_to_rgb(hue, 1, 1)
+        led[0], led[1], led[2] = int(r * 255), int(g * 255), int(b * 255)
+
+def update(led_data, frame):
+    rainbow(led_data, frame)
+`
+  },
+  {
+    id: 'chase',
+    title: '4. Chase / Animation',
+    instructions: 'A single lit pixel moves along the strip. Try changing the color constant used below, or <code>frame // 3</code> to speed it up or slow it down.',
+    code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
+    for led in led_data:
+        led[0], led[1], led[2] = r, g, b
+
+def off(led_data):
+    solid_color(led_data, 0, 0, 0)
+
+def chase(led_data, r, g, b, position):
+    off(led_data)
+    index = position % len(led_data)
+    led_data[index][0], led_data[index][1], led_data[index][2] = r, g, b
+
+def update(led_data, frame):
+    chase(led_data, *GREEN, frame // 3)
+`
+  },
+  {
+    id: 'synthesis',
+    title: '5. Synthesis Challenge',
+    instructions: 'Build a "robot status" display: solid green when idle, a chase animation while "loading," and a fast rainbow when "ready to score." All the helper functions from earlier are included below — combine them using <code>frame</code> ranges.',
+    code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
+    for led in led_data:
+        led[0], led[1], led[2] = r, g, b
+
+def off(led_data):
+    solid_color(led_data, 0, 0, 0)
+
+def stripes(led_data, color1, color2, stripe_width):
+    for i, led in enumerate(led_data):
+        if (i // stripe_width) % 2 == 0:
+            led[0], led[1], led[2] = color1
+        else:
+            led[0], led[1], led[2] = color2
+
+def rainbow(led_data, offset):
+    import colorsys
+    for i, led in enumerate(led_data):
+        hue = ((offset + i * 3) % 180) / 180
+        r, g, b = colorsys.hsv_to_rgb(hue, 1, 1)
+        led[0], led[1], led[2] = int(r * 255), int(g * 255), int(b * 255)
+
+def chase(led_data, r, g, b, position):
+    off(led_data)
+    index = position % len(led_data)
+    led_data[index][0], led_data[index][1], led_data[index][2] = r, g, b
+
+# Challenge: solid green when "idle" (frame < 300),
+# chase while "loading" (300 <= frame < 600),
+# fast rainbow when "ready to score" (frame >= 600)
+def update(led_data, frame):
+    solid_color(led_data, *GREEN)
+`
+  }
+];
+
+// ---------------------------------------------------------------
+// The pygame-like shim: a small canvas-backed stand-in for the real
+// pygame module, implementing only what these lessons use. Runs
+// entirely on the main thread; never shown to students.
+// ---------------------------------------------------------------
+const SHIM_SRC = `
+import sys, types, time, math
+import js
+from pyodide.ffi import create_proxy
+
+_pygame = types.ModuleType("pygame")
+
+_pygame.QUIT = "QUIT"
+_pygame.KEYDOWN = "KEYDOWN"
+_pygame.K_LEFT = "ArrowLeft"
+_pygame.K_RIGHT = "ArrowRight"
+_pygame.K_UP = "ArrowUp"
+_pygame.K_DOWN = "ArrowDown"
+_pygame.K_SPACE = " "
+
+_state = {
+    "ctx": None,
+    "event_queue": [],
+    "should_stop": False,
+    "generation": 0,
+    "keydown_registered": False,
+}
+
+class _Event:
+    def __init__(self, type_, **kwargs):
+        self.type = type_
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+_ARROW_KEYS = {"ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"}
+
+def _on_keydown(evt):
+    active = js.document.activeElement
+    tag = getattr(active, "tagName", "") if active else ""
+    if tag == "TEXTAREA" or tag == "INPUT":
+        return
+    if evt.key in _ARROW_KEYS:
+        evt.preventDefault()
+    _state["event_queue"].append(_Event(_pygame.KEYDOWN, key=evt.key))
+
+_keydown_proxy = create_proxy(_on_keydown)
+
+def _to_css(color):
+    if len(color) >= 4:
+        r, g, b, a = color[0], color[1], color[2], color[3] / 255
+        return f"rgba({r},{g},{b},{a})"
+    r, g, b = color[0], color[1], color[2]
+    return f"rgb({r},{g},{b})"
+
+def _begin_run():
+    _state["generation"] += 1
+    _state["should_stop"] = False
+    _state["event_queue"] = []
+    return _state["generation"]
+
+def _still_current(gen):
+    return gen == _state["generation"]
+
+def _request_stop():
+    _state["should_stop"] = True
+
+def init():
+    if not _state["keydown_registered"]:
+        js.window.addEventListener("keydown", _keydown_proxy)
+        _state["keydown_registered"] = True
+
+def quit():
+    pass
+
+_pygame.init = init
+_pygame.quit = quit
+_pygame._begin_run = _begin_run
+_pygame._still_current = _still_current
+_pygame._request_stop = _request_stop
+
+class _Surface:
+    def __init__(self, w, h):
+        self.w, self.h = w, h
+    def fill(self, color):
+        ctx = _state["ctx"]
+        ctx.fillStyle = _to_css(color)
+        ctx.fillRect(0, 0, self.w, self.h)
+    def blit(self, surf, pos):
+        surf._draw_at(pos)
+
+class _Display:
+    def set_mode(self, size):
+        w, h = size
+        canvas_id = js.window.pygame_canvas_id
+        canvas = js.document.getElementById(canvas_id)
+        canvas.width = w
+        canvas.height = h
+        _state["ctx"] = canvas.getContext("2d")
+        return _Surface(w, h)
+    def set_caption(self, title):
+        pass
+    def flip(self):
+        pass
+
+_pygame.display = _Display()
+
+class _Draw:
+    def rect(self, surface, color, rect, width=0):
+        x, y, w, h = rect
+        ctx = _state["ctx"]
+        if width == 0:
+            ctx.fillStyle = _to_css(color)
+            ctx.fillRect(x, y, w, h)
+        else:
+            ctx.strokeStyle = _to_css(color)
+            ctx.lineWidth = width
+            ctx.strokeRect(x, y, w, h)
+    def circle(self, surface, color, pos, radius, width=0):
+        x, y = pos
+        ctx = _state["ctx"]
+        ctx.beginPath()
+        ctx.arc(x, y, radius, 0, 2 * math.pi)
+        if width == 0:
+            ctx.fillStyle = _to_css(color)
+            ctx.fill()
+        else:
+            ctx.strokeStyle = _to_css(color)
+            ctx.lineWidth = width
+            ctx.stroke()
+    def line(self, surface, color, start, end, width=1):
+        ctx = _state["ctx"]
+        ctx.beginPath()
+        ctx.moveTo(start[0], start[1])
+        ctx.lineTo(end[0], end[1])
+        ctx.strokeStyle = _to_css(color)
+        ctx.lineWidth = width
+        ctx.stroke()
+
+_pygame.draw = _Draw()
+
+class _TextSurface:
+    def __init__(self, text, color, size):
+        self.text = text
+        self.color = color
+        self.size = size
+    def _draw_at(self, pos):
+        ctx = _state["ctx"]
+        ctx.fillStyle = _to_css(self.color)
+        ctx.font = f"{self.size}px monospace"
+        ctx.textBaseline = "top"
+        ctx.fillText(self.text, pos[0], pos[1])
+
+class _Font:
+    def __init__(self, size):
+        self.size = size
+    def render(self, text, antialias, color):
+        return _TextSurface(text, color, self.size)
+
+class _FontModule:
+    def SysFont(self, name, size):
+        return _Font(size)
+
+_pygame.font = _FontModule()
+
+class _EventModule:
+    def get(self):
+        evts = list(_state["event_queue"])
+        _state["event_queue"] = []
+        if _state["should_stop"]:
+            evts.append(_Event(_pygame.QUIT))
+            _state["should_stop"] = False
+        return evts
+
+_pygame.event = _EventModule()
+
+class _Clock:
+    def __init__(self):
+        self._last = None
+    def tick(self, fps=None):
+        now = time.time()
+        if self._last is None:
+            dt_ms = 1000.0 / (fps or 60)
+        else:
+            dt_ms = (now - self._last) * 1000.0
+        self._last = now
+        return dt_ms
+
+class _TimeModule:
+    def Clock(self):
+        return _Clock()
+
+_pygame.time = _TimeModule()
+
+sys.modules["pygame"] = _pygame
+`;
+
+// ---------------------------------------------------------------
+// The engine: hidden boilerplate, identical in spirit to the desktop
+// led_visualizer.py, adapted to yield to the browser each frame.
+// ---------------------------------------------------------------
+const LED_ENGINE_SRC = `
+import asyncio
+import pygame
+
+async def _run():
+    gen = pygame._begin_run()
+    pygame.init()
+    NUM_LEDS = 60
+    WIDTH = 900
+    LED_SIZE = WIDTH // NUM_LEDS
+    screen = pygame.display.set_mode((WIDTH, 200))
+    clock = pygame.time.Clock()
+    led_data = [[0, 0, 0] for _ in range(NUM_LEDS)]
+    frame = 0
+
+    while pygame._still_current(gen):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+
+        update(led_data, frame)
+
+        screen.fill((20, 20, 20))
+        for i, (r, g, b) in enumerate(led_data):
+            pygame.draw.rect(screen, (r, g, b), (i * LED_SIZE, 50, LED_SIZE - 2, 100))
+        pygame.display.flip()
+
+        frame += 1
+        clock.tick(60)
+        await asyncio.sleep(1/60)
+
+asyncio.ensure_future(_run())
+`;
+
+// ---------------------------------------------------------------
+// Readiness tracking, navigation state, and the single editor.
+// ---------------------------------------------------------------
+let pyodideReady = false;
+let monacoReady = false;
+let pyodide = null;
+let editor = null;
+const models = {};
+let currentIndex = 0;
+
+function updateStatus() {
+  const statusEl = document.getElementById('status');
+  if (pyodideReady && monacoReady) {
+    statusEl.textContent = 'Ready! Use Run to try the current code, or Next/Previous to move between concepts.';
+    statusEl.className = 'ready';
+    document.querySelectorAll('.run-btn').forEach(b => b.disabled = false);
+    updateNavButtons();
+  } else {
+    const waiting = [];
+    if (!monacoReady) waiting.push('code editor');
+    if (!pyodideReady) waiting.push('Python');
+    statusEl.textContent = 'Loading ' + waiting.join(' and ') + '… this can take 10–20 seconds the first time.';
+  }
+}
+
+function updateNavButtons() {
+  const ready = pyodideReady && monacoReady;
+  document.getElementById('prevBtn').disabled = !ready || currentIndex === 0;
+  document.getElementById('nextBtn').disabled = !ready || currentIndex === SEGMENTS.length - 1;
+}
+
+function resetCanvas() {
+  const canvas = document.getElementById('pygame-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function renderSegment(i) {
+  const seg = SEGMENTS[i];
+  document.getElementById('segment-title').textContent = seg.title;
+  document.getElementById('segment-instructions').innerHTML = seg.instructions;
+  document.getElementById('segment-indicator').textContent = (i + 1) + ' / ' + SEGMENTS.length;
+  if (editor && models[seg.id]) editor.setModel(models[seg.id]);
+  document.getElementById('error-box').style.display = 'none';
+  updateNavButtons();
+  if (pyodideReady) stopAll();
+  resetCanvas();
+}
+
+function nextSegment() {
+  if (currentIndex < SEGMENTS.length - 1) {
+    currentIndex++;
+    renderSegment(currentIndex);
+  }
+}
+
+function prevSegment() {
+  if (currentIndex > 0) {
+    currentIndex--;
+    renderSegment(currentIndex);
+  }
+}
+
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.53.0/min/vs' } });
+require(['vs/editor/editor.main'], function () {
+  // Create every segment's model once, up front, so switching
+  // segments preserves whatever a student has typed in each one.
+  for (const seg of SEGMENTS) {
+    models[seg.id] = monaco.editor.createModel(seg.code, 'python');
+  }
+  editor = monaco.editor.create(document.getElementById('editor-container'), {
+    theme: 'vs-dark',
+    minimap: { enabled: false },
+    automaticLayout: true,
+    fontSize: 14,
+    scrollBeyondLastLine: false,
+  });
+  editor.setModel(models[SEGMENTS[0].id]);
+  monacoReady = true;
+  renderSegment(currentIndex);
+  updateStatus();
+});
+
+async function setupPyodide() {
+  try {
+    pyodide = await loadPyodide();
+    await pyodide.runPythonAsync(SHIM_SRC);
+    pyodideReady = true;
+    updateStatus();
+  } catch (err) {
+    document.getElementById('status').textContent = 'Failed to load Python: ' + err.message;
+    document.getElementById('status').className = 'error';
+  }
+}
+setupPyodide();
+
+function resetCurrent() {
+  const seg = SEGMENTS[currentIndex];
+  if (models[seg.id]) models[seg.id].setValue(seg.code);
+}
+
+async function runCurrent() {
+  if (!pyodideReady || !monacoReady) return;
+  const errorEl = document.getElementById('error-box');
+  errorEl.style.display = 'none';
+  window.pygame_canvas_id = 'pygame-canvas';
+  const studentCode = editor.getValue();
+  const fullCode = studentCode + '\n' + LED_ENGINE_SRC;
+  try {
+    await pyodide.runPythonAsync(fullCode);
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+}
+
+function stopAll() {
+  if (!pyodideReady) return;
+  pyodide.runPython('import pygame; pygame._request_stop()');
+}
+</script>
+
+</body>
+</html>
