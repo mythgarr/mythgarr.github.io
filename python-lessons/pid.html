@@ -170,70 +170,52 @@
 // ---------------------------------------------------------------
 const SEGMENTS = [
   {
-    id: 'none',
-    title: '1. No Control at All',
-    instructions: `Click Run, then click the canvas and try the arrow keys. Nothing should move yet — this function always says "don't push."`,
-    code: `def compute_output(error, dt):
-    return 0.0
-`
-  },
-  {
-    id: 'p',
-    title: '2. Proportional (P) Control',
-    instructions: 'The arm should swing toward the target and settle <i>short</i> of it. Try raising <code>kP</code>, or use Up/Down to add mass and watch the gap change.',
-    code: `kP = 4.0
+    id: 'ff',
+    title: '1. Feed-Forward',
+    instructions: `Click Run, then click the canvas. The arm swings up and <i>holds</i> steady — but settles short of the green marker. Feed-forward makes a simple open-loop <b>guess</b> at the push needed: the farther away the target, the more push, so <code>kFF * setpoint</code>. It's just a guess — notice it never looks at <code>error</code>, so it has no idea where the arm actually is. Nudge <code>kFF</code> up to bring the arm closer to the target, or too high and it flings the arm over the top. Then press Up/Down to change the mass and watch the guess fall apart. Open-loop guessing is fragile — we need feedback.`,
+    code: `# kFF is our feed-forward gain: a rough open-loop guess at the push
+# needed to reach the target. It only uses the setpoint, never the
+# error, so it can't correct itself if it guesses wrong.
+kFF = 0.25
 
-def compute_output(error, dt):
-    output = kP * error
-    output = max(-1.0, min(1.0, output))
+def compute_output(setpoint, error, dt):
+    output = kFF * setpoint
     return output
 `
   },
   {
-    id: 'pi',
-    title: '3. Adding Integral (I)',
-    instructions: 'Watch closely: it should approach the same spot as before, then slowly creep the rest of the way to the target.',
-    code: `kP = 4.0
-kI = 2.0
-
-integral = 0.0
-
-def compute_output(error, dt):
-    global integral
-    integral += error * dt
-    output = kP * error + kI * integral
-    output = max(-1.0, min(1.0, output))
-    return output
-`
-  },
-  {
-    id: 'pid',
-    title: '4. Adding Derivative (D)',
-    instructions: 'Compare this against P+I by toggling <code>kD</code> between 0 and 0.5 — it should settle with less wobble.',
-    code: `kP = 4.0
-kI = 2.0
-kD = 0.5
+    id: 'pidff',
+    title: '2. Closing the Loop: PID',
+    instructions: `Now we keep the feed-forward guess and add <b>feedback</b> — the three PID terms that watch <code>error</code> and fix whatever the guess got wrong. <b>P</b> pushes harder the farther off you are, <b>I</b> adds up leftover error over time to erase the last little gap, and <b>D</b> reacts to how fast the error is changing to damp out wobble. The arm should now snap to the target and hold it. Get a feel for each term: set <code>kI = 0</code> and watch it settle just short again; set <code>kD = 0</code> and watch it overshoot and wobble; crank <code>kP</code> up and watch it get twitchy.`,
+    code: `kFF = 0.25   # feed-forward: our open-loop guess at the push needed
+kP = 4.0     # proportional: push harder the farther off we are
+kI = 2.0     # integral: erase leftover error over time
+kD = 0.5     # derivative: damp out wobble
 
 integral = 0.0
 previous_error = 0.0
 
-def compute_output(error, dt):
+def compute_output(setpoint, error, dt):
     global integral, previous_error
+
+    feedforward = kFF * setpoint
+
     integral += error * dt
     derivative = (error - previous_error) / dt if dt > 0 else 0
     previous_error = error
-    output = kP * error + kI * integral + kD * derivative
-    output = max(-1.0, min(1.0, output))
+
+    output = feedforward + kP * error + kI * integral + kD * derivative
     return output
 `
   },
   {
-    id: 'tune',
-    title: '5. Free Tuning Challenge',
-    instructions: `Get the arm to reach a new target in under 2 seconds with as little wobble as possible. Move the target with Left/Right, change the arm's mass with Up/Down mid-run, and hand-tune all three gains to compensate.`,
-    code: `# Try your own values! Move the target with Left/Right, and
-# change the arm's mass with Up/Down mid-run to see how it
-# affects the tuning you need.
+    id: 'disturbance',
+    title: '3. A Moving Target: Changing Mass',
+    instructions: `Same controller — but now the arm's mass lurches to a new random value between <code>0.5</code> and <code>1.5</code> kg <b>every second</b> (watch the Mass readout). Your fixed <code>kFF</code> guess is only right part of the time now, so the arm bobs as the weight shifts. This is where feedback earns its keep: the <b>I</b> term keeps re-erasing the error the wrong guess leaves behind. Try setting <code>kI = 0</code> to watch the arm sag and drift with every mass change, then turn it back on.`,
+    code: `# The engine randomizes the arm's mass every second (0.5-1.5 kg).
+RANDOMIZE_MASS = True
+
+kFF = 0.25
 kP = 4.0
 kI = 2.0
 kD = 0.5
@@ -241,13 +223,39 @@ kD = 0.5
 integral = 0.0
 previous_error = 0.0
 
-def compute_output(error, dt):
+def compute_output(setpoint, error, dt):
     global integral, previous_error
+    feedforward = kFF * setpoint
     integral += error * dt
     derivative = (error - previous_error) / dt if dt > 0 else 0
     previous_error = error
-    output = kP * error + kI * integral + kD * derivative
-    output = max(-1.0, min(1.0, output))
+    output = feedforward + kP * error + kI * integral + kD * derivative
+    return output
+`
+  },
+  {
+    id: 'tune',
+    title: '4. Free Tuning Challenge',
+    instructions: `The mass is still randomizing every second. Tune all four gains so the arm reaches a new target in under 2 seconds and stays rock-steady despite the changing weight. Move the target with Left/Right. Want to practice on a calm arm first? Set <code>RANDOMIZE_MASS = False</code>.`,
+    code: `# Free tuning! The mass randomizes every second (0.5-1.5 kg).
+# Set RANDOMIZE_MASS = False to practice on a constant-mass arm.
+RANDOMIZE_MASS = True
+
+kFF = 0.25
+kP = 4.0
+kI = 2.0
+kD = 0.5
+
+integral = 0.0
+previous_error = 0.0
+
+def compute_output(setpoint, error, dt):
+    global integral, previous_error
+    feedforward = kFF * setpoint
+    integral += error * dt
+    derivative = (error - previous_error) / dt if dt > 0 else 0
+    previous_error = error
+    output = feedforward + kP * error + kI * integral + kD * derivative
     return output
 `
   }
@@ -454,7 +462,7 @@ sys.modules["pygame"] = _pygame
 // the on-screen pixel length.
 // ---------------------------------------------------------------
 const PID_ENGINE_SRC = `
-import asyncio, math
+import asyncio, math, random
 import pygame
 
 async def _run():
@@ -464,7 +472,7 @@ async def _run():
     PIVOT = (WIDTH // 2, HEIGHT // 2)
     ARM_LENGTH = 200        # pixels, for drawing only
     PHYSICAL_LENGTH = 2.0   # meters, used in the physics
-    MASS = 2.0              # kg; adjustable live with Up/Down
+    MASS = 1.0              # kg; adjustable live with Up/Down
     GRAVITY = 9.8
     MAX_MOTOR_TORQUE = 40.0
     DAMPING = 0.5
@@ -477,12 +485,23 @@ async def _run():
     theta_dot = 0.0
     setpoint_deg = 90.0
 
+    # Optional complication: some lessons set RANDOMIZE_MASS = True to
+    # make the arm's mass jump to a new random value once per second.
+    randomize_mass = bool(globals().get("RANDOMIZE_MASS", False))
+    mass_timer = 0.0
+
     def wrap_angle(a):
         return (a + math.pi) % (2 * math.pi) - math.pi
 
     while pygame._still_current(gen):
         raw_dt = clock.tick(60) / 1000.0
         dt = raw_dt if 0 < raw_dt < 0.25 else 1/60
+
+        if randomize_mass:
+            mass_timer += dt
+            if mass_timer >= 1.0:
+                mass_timer -= 1.0
+                MASS = round(random.uniform(0.5, 1.5), 2)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -500,7 +519,7 @@ async def _run():
         setpoint_rad = math.radians(setpoint_deg)
         error = wrap_angle(setpoint_rad - theta)
 
-        motor_power = compute_output(error, dt)
+        motor_power = compute_output(setpoint_rad, error, dt)
         motor_power = max(-1.0, min(1.0, motor_power))
 
         torque_motor = motor_power * MAX_MOTOR_TORQUE
@@ -522,8 +541,9 @@ async def _run():
         target_y = PIVOT[1] + ARM_LENGTH * math.cos(setpoint_rad)
         pygame.draw.circle(screen, (100, 255, 100), (int(target_x), int(target_y)), 6, 2)
 
+        mass_str = f"{MASS:.1f}kg" + (" (random)" if randomize_mass else "")
         text = font.render(
-            f"Setpoint: {setpoint_deg:.0f}   Error: {math.degrees(error):.1f}   Power: {motor_power:.2f}   Mass: {MASS:.1f}kg",
+            f"Setpoint: {setpoint_deg:.0f}   Error: {math.degrees(error):.1f}   Power: {motor_power:.2f}   Mass: {mass_str}",
             True, (255, 255, 255))
         screen.blit(text, (10, 10))
         screen.blit(font.render("Click canvas: Left/Right = target, Up/Down = mass", True, (180, 180, 180)), (10, 40))
@@ -640,7 +660,9 @@ async function runCurrent() {
   errorEl.style.display = 'none';
   window.pygame_canvas_id = 'pygame-canvas';
   const studentCode = editor.getValue();
-  const fullCode = studentCode + '\n' + PID_ENGINE_SRC;
+  // Default RANDOMIZE_MASS off before student code runs, so a lesson
+  // that doesn't set it can't inherit True from a previous run's globals.
+  const fullCode = 'RANDOMIZE_MASS = False\n' + studentCode + '\n' + PID_ENGINE_SRC;
   try {
     await pyodide.runPythonAsync(fullCode);
     document.getElementById('pygame-canvas').focus();
