@@ -121,6 +121,34 @@
     margin-top: 8px;
     display: none;
   }
+  details.hardware {
+    margin-top: 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+  }
+  details.hardware summary {
+    cursor: pointer;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  details.hardware p {
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  details.hardware pre {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--text);
+  }
 </style>
 </head>
 <body>
@@ -151,6 +179,30 @@
   <pre class="error" id="error-box"></pre>
 </section>
 
+<details class="hardware">
+  <summary>Bonus: run this on real NeoPixel hardware</summary>
+  <p>Everything you wrote here runs on a real LED strip with almost no changes. On a microcontroller running <b>MicroPython</b> (like a Raspberry Pi Pico or an ESP32), the <code>neopixel</code> library drives real WS2812 LEDs. Your <code>solid_color</code>, <code>stripes</code>, <code>rainbow</code>, <code>chase</code>, and <code>update</code> functions stay <b>exactly the same</b> — you just add this driver loop at the very end of your file:</p>
+  <pre><code>from machine import Pin
+from neopixel import NeoPixel
+
+pin = Pin(18, Pin.OUT)                          # GPIO18 drives the NeoPixels
+np = NeoPixel(pin, 40)                          # 40 pixels
+
+# One mutable list per pixel, so the drawing functions can edit them in place.
+led_data = [[0, 0, 0] for _ in range(len(np))]
+
+frame = 0
+while True:
+    update(led_data, frame)
+    for i, led in enumerate(led_data):
+        np[i] = led
+    np.write()
+    frame += 1</code></pre>
+  <p>This is the same loop the browser uses: build the strip, call <code>update(led_data, frame)</code>, copy each color onto the hardware, and advance the frame.</p>
+  <p><b>Why tuples?</b> The color constants like <code>RED = (255, 0, 0)</code> are tuples so they can't be changed by accident. But <code>led_data</code> holds mutable <b>lists</b>, because the drawing functions edit pixels in place with <code>led[0], led[1], led[2] = ...</code> — something you can't do to a tuple.</p>
+  <p><b>Why no <code>sleep</code>?</b> <code>np.write()</code> is a blocking call that physically clocks the color data out to every LED, which already takes a meaningful amount of time. Adding a delay would only make the animation slower, so we let the loop run flat-out.</p>
+</details>
+
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.js"></script>
@@ -159,12 +211,12 @@
 // ---------------------------------------------------------------
 // Color constants shared by every segment's starter code.
 // ---------------------------------------------------------------
-const COLOR_CONSTANTS = `RED = [255, 0, 0]
-GREEN = [0, 255, 0]
-BLUE = [0, 0, 255]
-YELLOW = [255, 255, 0]
-WHITE = [255, 255, 255]
-OFF = [0, 0, 0]
+const COLOR_CONSTANTS = `RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+WHITE = (255, 255, 255)
+OFF = (0, 0, 0)
 
 `;
 
@@ -177,7 +229,7 @@ const SEGMENTS = [
   {
     id: 'solid',
     title: '1. Solid Color',
-    instructions: 'Click <b>Run</b> to see what this code does. Try changing the numbers and running it again.',
+    instructions: 'Click <b>Run</b> to see what this code does. The three numbers are <b>red</b>, <b>green</b>, and <b>blue</b>, each from 0 to 255 — mix them to make any color. <br><br>Designers often write colors as a <b>hex code</b> like <code>#02195a</code> (that\'s Texplosion Blue!). It\'s the same red-green-blue idea, just packed into six digits: <code>RRGGBB</code>. The first two digits are red, the middle two are green, the last two are blue. Each pair is a number written in <b>base 16</b> (hexadecimal), where the digits go 0-9 then a, b, c, d, e, f — so <code>ff</code> means 255 (all the way on) and <code>00</code> means 0 (off). In Python you can write a hex number with <code>0x</code> in front, so <code>0x02</code> is 2 and <code>0xff</code> is 255. <br><br>Try uncommenting the commented-out line and running it. Then reorder the numbers, change them, and see if you can match Texplosion Blue perfectly using what you\'ve learned.',
     code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
     for led in led_data:
         led[0], led[1], led[2] = r, g, b
@@ -186,12 +238,18 @@ def update(led_data, frame):
     solid_color(led_data, 255, 0, 0)
     # You could also write this using the color constant above:
     # solid_color(led_data, *RED)
+
+    # Texplosion Blue is the hex color #02195a.
+    # In RRGGBB that's red=0x02, green=0x19, blue=0x5a.
+    # Try uncommenting this line, then fix the last number
+    # (and reorder them!) to match Texplosion Blue perfectly:
+    # solid_color(led_data, 0x02, 0x19, 255)
 `
   },
   {
     id: 'stripes',
     title: '2. Stripes',
-    instructions: 'Same idea, one new function: <code>stripes()</code>. Try changing <code>stripe_width</code>, or swap in the other color constants defined at the top.',
+    instructions: 'Same idea, one new function: <code>stripes()</code>. The last argument, <code>stripe_width</code>, controls how many LEDs are in each band — try changing <code>5</code> to a bigger or smaller number and see what happens. Then swap <code>RED</code> and <code>BLUE</code> for the other color constants defined at the top, or make your own color with three numbers.',
     code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
     for led in led_data:
         led[0], led[1], led[2] = r, g, b
@@ -208,9 +266,95 @@ def update(led_data, frame):
 `
   },
   {
+    id: 'advanced_stripes',
+    title: '3. Advanced Stripes',
+    instructions: 'This <code>stripes()</code> is almost the same as before — but instead of just <code>color1</code> and <code>color2</code>, it takes a single <code>colors</code> list that can hold <b>any number of colors</b>. The trick is <code>colors[stripe_index % len(colors)]</code>: <code>%</code> wraps the count back around to the start of the list, so the colors keep cycling no matter how many there are. Try adding more colors to the list, or removing some.',
+    code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
+    for led in led_data:
+        led[0], led[1], led[2] = r, g, b
+
+def stripes(led_data, colors, stripe_width):
+    for i, led in enumerate(led_data):
+        stripe_index = i // stripe_width
+        led[0], led[1], led[2] = colors[stripe_index % len(colors)]
+
+def update(led_data, frame):
+    stripes(led_data, [RED, GREEN, BLUE], 5)
+`
+  },
+  {
+    id: 'mix_match',
+    title: '4. Mixing and Matching',
+    instructions: 'You don\'t have to light up the whole strip at once — you can work on a <b>slice</b> of it. <code>led_data[:10]</code> means "the first 10 LEDs," and <code>led_data[10:]</code> means "everything from LED 10 onward." Passing a slice to a helper function makes it only affect that part of the strip. <br><br>Below, we fill the whole strip green, then paint just the first 10 red. Try combining the earlier functions on different slices — for example: <code>solid_color(led_data[:20], *BLUE)</code> then <code>stripes(led_data[20:], [RED, YELLOW], 3)</code>, or a <code>chase</code> on <code>led_data[30:]</code> while the front stays a solid color.',
+    code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
+    for led in led_data:
+        led[0], led[1], led[2] = r, g, b
+
+def stripes(led_data, colors, stripe_width):
+    for i, led in enumerate(led_data):
+        stripe_index = i // stripe_width
+        led[0], led[1], led[2] = colors[stripe_index % len(colors)]
+
+def update(led_data, frame):
+    # Fill the whole strip with green...
+    solid_color(led_data, *GREEN)
+    # ...then paint just the first 10 LEDs red.
+    solid_color(led_data[:10], *RED)
+`
+  },
+  {
+    id: 'chase',
+    title: '5. Chase / Animation',
+    instructions: 'This is our first <b>animation</b> — it moves on its own. Here\'s the secret: the engine calls your <code>update()</code> function about 60 times every second, and each time it hands you a <code>frame</code> number that counts up: 0, 1, 2, 3, and so on. Nothing moves within a single frame; the <i>illusion</i> of motion comes from each frame being drawn slightly differently from the last. Here we turn <code>frame</code> into the pixel\'s <code>position</code>, so the lit pixel steps further along as the frames tick by (<code>frame // 3</code> advances it only every 3 frames, which slows it down). <br><br>Also notice that <code>chase()</code> no longer clears the strip itself — it just lights one pixel. Instead, <code>update()</code> clears the strip with <code>off()</code> first, then draws the chase on top. That means you can <b>combine</b> it: try replacing <code>off(led_data)</code> with <code>solid_color(led_data, *BLUE)</code> or a <code>stripes(...)</code> call to give the moving pixel a background. Or change the color, or <code>frame // 3</code> to speed it up or slow it down.',
+    code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
+    for led in led_data:
+        led[0], led[1], led[2] = r, g, b
+
+def off(led_data):
+    solid_color(led_data, 0, 0, 0)
+
+def chase(led_data, r, g, b, position):
+    index = position % len(led_data)
+    led_data[index][0], led_data[index][1], led_data[index][2] = r, g, b
+
+def update(led_data, frame):
+    # Clear the strip first, then draw the chase on top.
+    # Try swapping off() for a background color or stripes()!
+    off(led_data)
+    chase(led_data, *GREEN, frame // 3)
+`
+  },
+  {
+    id: 'pingpong',
+    title: '6. Ping-Pong',
+    instructions: 'This uses the <b>exact same</b> <code>chase()</code> function as the last step — the only new idea is how we calculate the position. In Chase, the pixel wrapped around with <code>%</code> and jumped from the end back to the start. Here it <b>bounces</b> instead. The trick is in <code>ping_pong()</code>: <code>position % (2 * span)</code> makes a repeating cycle that\'s twice the length of the strip, and <code>abs(cycle - span)</code> folds that cycle in half — so the number counts up to the far end, then back down, over and over. Try changing <code>frame // 3</code> to bounce faster or slower, swap the color, or give it a background by replacing <code>off(led_data)</code> like you did before.',
+    code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
+    for led in led_data:
+        led[0], led[1], led[2] = r, g, b
+
+def off(led_data):
+    solid_color(led_data, 0, 0, 0)
+
+def chase(led_data, r, g, b, position):
+    index = position % len(led_data)
+    led_data[index][0], led_data[index][1], led_data[index][2] = r, g, b
+
+def ping_pong(position, length):
+    # Bounce a position back and forth between 0 and length - 1.
+    span = length - 1
+    cycle = position % (2 * span)
+    return abs(cycle - span)
+
+def update(led_data, frame):
+    off(led_data)
+    position = ping_pong(frame // 3, len(led_data))
+    chase(led_data, *YELLOW, position)
+`
+  },
+  {
     id: 'rainbow',
-    title: '3. Rainbow',
-    instructions: 'Watch it scroll. Try changing <code>i * 3</code> to a bigger or smaller number, or how fast <code>frame</code> increases.',
+    title: '7. Rainbow',
+    instructions: 'Another animation driven by <code>frame</code> — but instead of a single moving pixel, the whole rainbow pattern slides along. We pass <code>frame</code> in as the rainbow\'s <code>offset</code>, so the colors shift a little further every frame. <br><br>Right now we pass <code>frame * 1.0</code>. That <code>* 1.0</code> is a speed dial — it decides how far the rainbow shifts each frame. Try different values: What happens with a bigger number like <code>frame * 3.0</code>? A smaller one like <code>frame * 0.2</code>? A <b>negative</b> number like <code>frame * -1.0</code>? <br><br>Then try <code>frame * 180.0</code>. It looks like the rainbow stops moving — why? Look closely at the line <code>hue = ((offset + i * 3) % 180) / 180</code>. What does <code>% 180</code> do to a number, and what happens when the offset jumps by exactly 180 every single frame?',
     code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
     for led in led_data:
         led[0], led[1], led[2] = r, g, b
@@ -223,32 +367,14 @@ def rainbow(led_data, offset):
         led[0], led[1], led[2] = int(r * 255), int(g * 255), int(b * 255)
 
 def update(led_data, frame):
-    rainbow(led_data, frame)
-`
-  },
-  {
-    id: 'chase',
-    title: '4. Chase / Animation',
-    instructions: 'A single lit pixel moves along the strip. Try changing the color constant used below, or <code>frame // 3</code> to speed it up or slow it down.',
-    code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
-    for led in led_data:
-        led[0], led[1], led[2] = r, g, b
-
-def off(led_data):
-    solid_color(led_data, 0, 0, 0)
-
-def chase(led_data, r, g, b, position):
-    off(led_data)
-    index = position % len(led_data)
-    led_data[index][0], led_data[index][1], led_data[index][2] = r, g, b
-
-def update(led_data, frame):
-    chase(led_data, *GREEN, frame // 3)
+    # frame counts up every frame. Multiplying it sets the speed.
+    # Try bigger, smaller, and negative numbers. Then try 180.0!
+    rainbow(led_data, frame * 1.0)
 `
   },
   {
     id: 'synthesis',
-    title: '5. Synthesis Challenge',
+    title: '8. Synthesis Challenge',
     instructions: 'Build a "robot status" display: solid green when idle, a chase animation while "loading," and a fast rainbow when "ready to score." All the helper functions from earlier are included below — combine them using <code>frame</code> ranges.',
     code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
     for led in led_data:
@@ -257,12 +383,10 @@ def update(led_data, frame):
 def off(led_data):
     solid_color(led_data, 0, 0, 0)
 
-def stripes(led_data, color1, color2, stripe_width):
+def stripes(led_data, colors, stripe_width):
     for i, led in enumerate(led_data):
-        if (i // stripe_width) % 2 == 0:
-            led[0], led[1], led[2] = color1
-        else:
-            led[0], led[1], led[2] = color2
+        stripe_index = i // stripe_width
+        led[0], led[1], led[2] = colors[stripe_index % len(colors)]
 
 def rainbow(led_data, offset):
     import colorsys
@@ -272,7 +396,6 @@ def rainbow(led_data, offset):
         led[0], led[1], led[2] = int(r * 255), int(g * 255), int(b * 255)
 
 def chase(led_data, r, g, b, position):
-    off(led_data)
     index = position % len(led_data)
     led_data[index][0], led_data[index][1], led_data[index][2] = r, g, b
 
