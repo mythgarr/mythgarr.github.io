@@ -184,23 +184,67 @@
   <p>Everything you wrote here runs on a real LED strip with almost no changes. On a microcontroller running <b>MicroPython</b> (like a Raspberry Pi Pico or an ESP32), the <code>neopixel</code> library drives real WS2812 LEDs. Your <code>solid_color</code>, <code>stripes</code>, <code>rainbow</code>, <code>chase</code>, and <code>update</code> functions stay <b>exactly the same</b> — you just add this driver loop at the very end of your file:</p>
   <pre><code>from machine import Pin
 from neopixel import NeoPixel
+from time import sleep_ms, ticks_ms, ticks_diff
+import sys
+import select
+
+MAX_BRIGHT = 0.02
+# If we don't get a message for 5s treat it as a disconnect
+DISCONNECT_TIME = 5000
+
+frame = 0
+last_msg = -100
+buf = ""
 
 pin = Pin(18, Pin.OUT)                          # GPIO18 drives the NeoPixels
-np = NeoPixel(pin, 40)                          # 40 pixels
+np = NeoPixel(pin, 64)                          # 64 pixels
+poller = select.poll()                          # Poll for input from stdin
+poller.register(sys.stdin, select.POLLIN)
 
 # One mutable list per pixel, so the drawing functions can edit them in place.
 led_data = [[0, 0, 0] for _ in range(len(np))]
 
-frame = 0
+def set_pattern(p):
+    global pattern, frame
+    if pattern != p:
+        frame = 0
+        pattern = p
+        print(f"pattern={pattern}")
+
+def handle_line(line):
+    if line[:2] == "P=":
+        try:
+            set_pattern(int(line[2:]))
+        except ValueError:
+            pass
+
 while True:
+    t = ticks_ms()
+    # poll(0) returns immediately: a list of (obj, eventmask) if data
+    # is waiting, or an empty list if not
+    while poller.poll(0):
+        ch = sys.stdin.read(1)
+        if ch == "\n":
+            last_msg = t
+            handle_line(buf.strip())
+            buf = ""
+        else:
+            buf += ch
+            if len(buf) > 64:
+                buf = ""
+
+    if ticks_diff(t, last_msg) > DISCONNECT_TIME:
+        set_pattern(0)
+
     update(led_data, frame)
     for i, led in enumerate(led_data):
-        np[i] = led
+        np[i] = (int(led[0]*MAX_BRIGHT), int(led[1]*MAX_BRIGHT), int(led[2]*MAX_BRIGHT))
     np.write()
+    sleep_ms(5)
     frame += 1</code></pre>
-  <p>This is the same loop the browser uses: build the strip, call <code>update(led_data, frame)</code>, copy each color onto the hardware, and advance the frame.</p>
+  <p>The core is the same loop the browser uses: build the strip, call <code>update(led_data, frame)</code>, copy each color onto the hardware, and advance the frame. The extra parts wire it up to a real robot. Each pass it <b>polls <code>stdin</code></b> for a command sent over the serial connection — a line like <code>P=5</code> means "switch to pattern 5" — and <code>set_pattern()</code> updates the <code>pattern</code> from Exercise 8, resetting <code>frame</code> so the new animation starts clean. If no message arrives for <code>DISCONNECT_TIME</code> milliseconds, it assumes the driver station is gone and falls back to pattern <code>0</code> (<code>NO_SIGNAL</code>).</p>
   <p><b>Why tuples?</b> The color constants like <code>RED = (255, 0, 0)</code> are tuples so they can't be changed by accident. But <code>led_data</code> holds mutable <b>lists</b>, because the drawing functions edit pixels in place with <code>led[0], led[1], led[2] = ...</code> — something you can't do to a tuple.</p>
-  <p><b>Why no <code>sleep</code>?</b> <code>np.write()</code> is a blocking call that physically clocks the color data out to every LED, which already takes a meaningful amount of time. Adding a delay would only make the animation slower, so we let the loop run flat-out.</p>
+  <p><b>Why <code>poll(0)</code>?</b> Reading from <code>stdin</code> normally <i>blocks</i> — it waits until a character shows up, which would freeze the animation. <code>poller.poll(0)</code> instead asks "is there any input waiting right now?" and returns immediately either way, so the loop reads whatever has arrived and keeps drawing without ever stalling.</p>
 </details>
 
 </main>
@@ -359,11 +403,34 @@ def update(led_data, frame):
     for led in led_data:
         led[0], led[1], led[2] = r, g, b
 
+def hsv_to_rgb(h, s, v):
+    # Same math as the standard library's colorsys.hsv_to_rgb, written
+    # out so it runs on MicroPython (which has no colorsys module).
+    # h, s, v are all 0..1; returns r, g, b as 0..1.
+    if s == 0.0:
+        return v, v, v
+    i = int(h * 6.0)
+    f = (h * 6.0) - i
+    p = v * (1.0 - s)
+    q = v * (1.0 - s * f)
+    t = v * (1.0 - s * (1.0 - f))
+    i = i % 6
+    if i == 0:
+        return v, t, p
+    if i == 1:
+        return q, v, p
+    if i == 2:
+        return p, v, t
+    if i == 3:
+        return p, q, v
+    if i == 4:
+        return t, p, v
+    return v, p, q
+
 def rainbow(led_data, offset):
-    import colorsys
     for i, led in enumerate(led_data):
         hue = ((offset + i * 3) % 180) / 180
-        r, g, b = colorsys.hsv_to_rgb(hue, 1, 1)
+        r, g, b = hsv_to_rgb(hue, 1, 1)
         led[0], led[1], led[2] = int(r * 255), int(g * 255), int(b * 255)
 
 def update(led_data, frame):
@@ -375,8 +442,21 @@ def update(led_data, frame):
   {
     id: 'synthesis',
     title: '8. Synthesis Challenge',
-    instructions: 'Build a "robot status" display: solid green when idle, a chase animation while "loading," and a fast rainbow when "ready to score." All the helper functions from earlier are included below — combine them using <code>frame</code> ranges.',
-    code: COLOR_CONSTANTS + `def solid_color(led_data, r, g, b):
+    instructions: 'This is how a real robot signals its state to the drivers and the crowd. At the top, <code>from micropython import const</code> and the <code>Pattern</code> class give each state a name and a number — <code>const()</code> tells MicroPython these are fixed values that never change. Set <code>pattern</code> to any <code>Pattern</code> value and the <code>update()</code> function decides what to draw. <br><br>Right now <code>update()</code> only handles one case: solid green for <code>READY_TO_SHOOT</code>, and solid red for everything else. <b>Your challenge:</b> flesh it out. Add an <code>elif</code> branch for each pattern and make it match the comment — flashing orange/yellow for <code>NO_SIGNAL</code>, a rapid red flash for <code>ERROR</code>, solid blue for <code>IDLE</code>, a rainbow for <code>SHOWTIME</code>, green with chasing white stripes for <code>SHOOTING</code>, and so on. All the helper functions from earlier are included below. Use <code>frame</code> to make things flash or move (e.g. <code>if (frame // 15) % 2 == 0:</code> blinks on and off). <br><br>To test each state, <b>click the animation and press a number key (0–6)</b> — the <code>on_key()</code> function switches <code>pattern</code> live, just like a real robot switching states while it runs.',
+    code: `from micropython import const
+
+` + COLOR_CONSTANTS + `class Pattern:
+    NO_SIGNAL = const(0)        # FLASH ORANGE/YELLOW
+    DS_DISCONNECTED = const(1)  # FLASH YELLOW/OFF
+    ERROR = const(2)            # RAPID RED FLASH
+    IDLE = const(3)             # SOLID BLUE
+    SHOWTIME = const(4)         # SOMETHING COOL
+    READY_TO_SHOOT = const(5)   # SOLID GREEN
+    SHOOTING = const(6)         # GREEN, FLASHES OR CHASING STRIPES OF WHITE
+
+pattern = Pattern.NO_SIGNAL
+
+def solid_color(led_data, r, g, b):
     for led in led_data:
         led[0], led[1], led[2] = r, g, b
 
@@ -388,22 +468,52 @@ def stripes(led_data, colors, stripe_width):
         stripe_index = i // stripe_width
         led[0], led[1], led[2] = colors[stripe_index % len(colors)]
 
+def hsv_to_rgb(h, s, v):
+    if s == 0.0:
+        return v, v, v
+    i = int(h * 6.0)
+    f = (h * 6.0) - i
+    p = v * (1.0 - s)
+    q = v * (1.0 - s * f)
+    t = v * (1.0 - s * (1.0 - f))
+    i = i % 6
+    if i == 0:
+        return v, t, p
+    if i == 1:
+        return q, v, p
+    if i == 2:
+        return p, v, t
+    if i == 3:
+        return p, q, v
+    if i == 4:
+        return t, p, v
+    return v, p, q
+
 def rainbow(led_data, offset):
-    import colorsys
     for i, led in enumerate(led_data):
         hue = ((offset + i * 3) % 180) / 180
-        r, g, b = colorsys.hsv_to_rgb(hue, 1, 1)
+        r, g, b = hsv_to_rgb(hue, 1, 1)
         led[0], led[1], led[2] = int(r * 255), int(g * 255), int(b * 255)
 
 def chase(led_data, r, g, b, position):
     index = position % len(led_data)
     led_data[index][0], led_data[index][1], led_data[index][2] = r, g, b
 
-# Challenge: solid green when "idle" (frame < 300),
-# chase while "loading" (300 <= frame < 600),
-# fast rainbow when "ready to score" (frame >= 600)
+# Press number keys 0-6 to switch patterns while it's running.
+# (Click the animation first so the keys go here, not the editor.)
+def on_key(key):
+    global pattern
+    if key in "0123456":
+        pattern = int(key)
+
+# Challenge: give every Pattern its own look. Add elif branches below
+# and use frame to make them flash or move.
 def update(led_data, frame):
-    solid_color(led_data, *GREEN)
+    off(led_data)
+    if pattern == Pattern.READY_TO_SHOOT:
+        solid_color(led_data, *GREEN)
+    else:
+        solid_color(led_data, *RED)
 `
   }
 ];
@@ -602,6 +712,17 @@ class _TimeModule:
 _pygame.time = _TimeModule()
 
 sys.modules["pygame"] = _pygame
+
+# ---------------------------------------------------------------
+# MicroPython shim: on real hardware "from micropython import const"
+# marks a value as a compile-time constant. There's no such concept
+# in CPython/Pyodide, so const() just returns its argument unchanged.
+# ---------------------------------------------------------------
+_micropython = types.ModuleType("micropython")
+def _const(value):
+    return value
+_micropython.const = _const
+sys.modules["micropython"] = _micropython
 `;
 
 // ---------------------------------------------------------------
@@ -627,6 +748,8 @@ async def _run():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return
+            elif event.type == pygame.KEYDOWN and "on_key" in globals():
+                on_key(event.key)
 
         update(led_data, frame)
 

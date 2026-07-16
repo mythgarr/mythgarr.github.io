@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simon Says — Python Lab</title>
+
+<!-- PyScript -->
+<link rel="stylesheet" href="https://pyscript.net/releases/2026.2.1/core.css" />
+<script type="module" src="https://pyscript.net/releases/2026.2.1/core.js"></script>
+
+<!-- Monaco editor (AMD loader) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet" />
+
+<style>
+  :root {
+    --bg: #101319;
+    --panel: #171c26;
+    --panel-2: #131824;
+    --line: #262d3c;
+    --text: #dfe4ee;
+    --muted: #8b94a7;
+    --hub-glow: #fbbf24;
+    --focus: #7dd3fc;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .display { font-family: "Chakra Petch", system-ui, sans-serif; }
+  button { font: inherit; cursor: pointer; }
+  button:focus-visible, .dot:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel-2);
+  }
+  header h1 {
+    margin: 0; font-size: 17px; letter-spacing: 0.06em;
+    font-family: "Chakra Petch", sans-serif; font-weight: 700;
+    text-transform: uppercase;
+  }
+  header h1 span { color: var(--hub-glow); }
+  .py-status { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .dots { display: flex; gap: 6px; }
+  .dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 1px solid var(--line); background: var(--panel);
+    padding: 0;
+  }
+  .dot.done { background: #2f3a50; }
+  .dot.active { background: var(--hub-glow); border-color: var(--hub-glow); }
+
+  /* ---------- layout ---------- */
+  .layout {
+    display: grid;
+    grid-template-columns: 330px minmax(420px, 1fr) 400px;
+    gap: 14px;
+    padding: 14px;
+    height: calc(100vh - 49px);
+  }
+  @media (max-width: 1100px) {
+    .layout { grid-template-columns: 1fr; height: auto; }
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    display: flex; flex-direction: column;
+    min-height: 0;
+  }
+
+  /* ---------- lesson sidebar ---------- */
+  .lesson { padding: 18px; overflow-y: auto; }
+  .stage-label { font-size: 12px; letter-spacing: 0.15em; color: var(--muted); }
+  .lesson h2 {
+    font-family: "Chakra Petch", sans-serif;
+    margin: 4px 0 10px; font-size: 21px; line-height: 1.25;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+  .chip {
+    font-size: 11.5px; letter-spacing: 0.03em;
+    padding: 2px 9px; border-radius: 99px;
+    background: #232b3d; color: #b9c3d8; border: 1px solid var(--line);
+  }
+  .lesson p { margin: 0 0 10px; color: #c8cfdd; }
+  .lesson code {
+    background: #0d1017; border: 1px solid var(--line);
+    padding: 1px 5px; border-radius: 4px;
+    font-size: 13px; color: #ffd97a;
+  }
+  .challenge {
+    border: 1px solid #3f3410;
+    background: #201a08; border-radius: 8px;
+    padding: 10px 12px; margin-top: 12px; font-size: 14px; color: #e7d9a8;
+  }
+  .challenge b { color: var(--hub-glow); }
+  .nav { display: flex; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
+  .nav button {
+    flex: 1; padding: 9px 0; border-radius: 8px;
+    border: 1px solid var(--line); background: #202737; color: var(--text);
+    font-family: "Chakra Petch", sans-serif; letter-spacing: 0.05em;
+  }
+  .nav button:hover:not(:disabled) { background: #2a3348; }
+  .nav button:disabled { opacity: 0.35; cursor: default; }
+  details.cheats { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+  details.cheats summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  details.cheats table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
+  details.cheats td { padding: 3px 4px; vertical-align: top; border-bottom: 1px solid #1f2634; }
+  details.cheats td:first-child { white-space: nowrap; color: #ffd97a; font-family: ui-monospace, monospace; }
+
+  /* ---------- editor column ---------- */
+  .workbench { min-height: 480px; }
+  .toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-bottom: 1px solid var(--line);
+  }
+  .toolbar .spacer { flex: 1; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 14px; border-radius: 8px; border: 1px solid transparent;
+    font-family: "Chakra Petch", sans-serif; font-weight: 600; letter-spacing: 0.04em;
+  }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn-run  { background: #1d4d31; border-color: #2e7d4f; color: #a7f3c5; }
+  .btn-run:hover:not(:disabled) { background: #226039; }
+  .btn-stop { background: #4d1d1d; border-color: #7d2e2e; color: #f3a7a7; }
+  .btn-stop:hover:not(:disabled) { background: #602222; }
+  .btn-reset { background: #202737; border-color: var(--line); color: var(--muted); }
+  .btn-reset:hover { color: var(--text); }
+  #editor { flex: 1; min-height: 260px; }
+  .console {
+    height: 140px; margin: 0; padding: 10px 12px; overflow-y: auto;
+    border-top: 1px solid var(--line); background: #0b0e14;
+    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #9fe8b1; white-space: pre-wrap; word-break: break-word;
+  }
+  .console .err { color: #ff8f8f; }
+  .console .hint { color: #566078; }
+
+  /* ---------- Simon board ---------- */
+  .boardwrap { padding: 18px; align-items: center; overflow-y: auto; }
+  .board {
+    position: relative;
+    width: min(340px, 100%);
+    aspect-ratio: 1 / 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 14px;
+    margin: 6px auto 14px;
+  }
+  .pad {
+    border: none; padding: 0;
+    transition: filter 120ms ease, box-shadow 120ms ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pad { transition: none; }
+  }
+  .pad.green  { background: #14522b; border-radius: 100% 8px 8px 8px; }
+  .pad.red    { background: #5c1a1a; border-radius: 8px 100% 8px 8px; }
+  .pad.yellow { background: #55420c; border-radius: 8px 8px 8px 100%; }
+  .pad.blue   { background: #123663; border-radius: 8px 8px 100% 8px; }
+  .pad.green.lit,  .pad.green.pulse  { background: #34d97b; box-shadow: 0 0 34px 6px rgba(52,217,123,.5); }
+  .pad.red.lit,    .pad.red.pulse    { background: #ff5d5d; box-shadow: 0 0 34px 6px rgba(255,93,93,.5); }
+  .pad.yellow.lit, .pad.yellow.pulse { background: #ffd23f; box-shadow: 0 0 34px 6px rgba(255,210,63,.5); }
+  .pad.blue.lit,   .pad.blue.pulse   { background: #4da3ff; box-shadow: 0 0 34px 6px rgba(77,163,255,.5); }
+  .pad:hover { filter: brightness(1.18); }
+  .pad:active { filter: brightness(1.5); }
+
+  .hub {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 46%; aspect-ratio: 1 / 1; border-radius: 50%;
+    background: #0b0e14;
+    border: 6px solid #232b3d;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 10px;
+  }
+  .hub span {
+    font-family: "Chakra Petch", sans-serif; font-weight: 700;
+    font-size: 17px; letter-spacing: 0.12em; line-height: 1.3;
+    color: var(--hub-glow);
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.65);
+    overflow-wrap: anywhere;
+  }
+  .board-note { font-size: 12.5px; color: var(--muted); text-align: center; margin: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 class="display">Simon Says <span>//</span> Python Lab</h1>
+  <div class="dots" id="dots" role="tablist" aria-label="Stages"></div>
+  <div class="py-status" id="pyStatus">Loading Python… (first load can take ~15 s)</div>
+</header>
+
+<div class="layout">
+
+  <!-- Lesson panel -->
+  <section class="card">
+    <div class="lesson" id="lesson"></div>
+    <div class="nav">
+      <button id="prevBtn" class="display">&#8592; Previous</button>
+      <button id="nextBtn" class="display">Next &#8594;</button>
+    </div>
+  </section>
+
+  <!-- Editor + console -->
+  <section class="card workbench">
+    <div class="toolbar">
+      <button class="btn btn-run" id="runBtn" disabled>&#9654; Run</button>
+      <button class="btn btn-stop" id="stopBtn" disabled>&#9632; Stop</button>
+      <div class="spacer"></div>
+      <button class="btn btn-reset" id="resetBtn">Reset code</button>
+    </div>
+    <div id="editor"></div>
+    <pre class="console" id="console"><span class="hint">Output appears here. Click Run to start your program.</span></pre>
+  </section>
+
+  <!-- Simon board -->
+  <section class="card boardwrap">
+    <div class="board">
+      <button class="pad green"  data-color="green"  aria-label="Green pad"></button>
+      <button class="pad red"    data-color="red"    aria-label="Red pad"></button>
+      <button class="pad yellow" data-color="yellow" aria-label="Yellow pad"></button>
+      <button class="pad blue"   data-color="blue"   aria-label="Blue pad"></button>
+      <div class="hub"><span id="hub">SIMON</span></div>
+    </div>
+    <p class="board-note">The pads are clickable — your program can read them with <b>wait_for_press()</b>.</p>
+  </section>
+
+</div>
+
+<script>
+/* =====================================================
+   Stage content
+   ===================================================== */
+const STAGES = [
+{
+  title: "Light it up",
+  chips: ["function calls", "arguments", "sleep()"],
+  html: `
+    <p>This board is a simulated <b>Simon</b> game — four light-up pads, each with a name:
+    <code>"green"</code>, <code>"red"</code>, <code>"yellow"</code>, <code>"blue"</code>.</p>
+    <p>Python runs your code <b>top to bottom, one line at a time</b>. Calling a function like
+    <code>light_on("green")</code> tells the board to do something. The value in the parentheses
+    is an <b>argument</b> — it says <i>which</i> pad.</p>
+    <p><code>sleep(1)</code> pauses the program for 1 second. Without it, the light would switch
+    off faster than you can see!</p>
+    <div class="challenge"><b>Try it:</b> finish the sequence for yellow and blue, speed it up,
+    then figure out how to have two pads lit at the same time.</div>`,
+  code: `# The pads are named: "green", "red", "yellow", "blue"
+# Click Run and watch the board -->
+
+light_on("green")
+sleep(1)
+light_off("green")
+
+light_on("red")
+sleep(1)
+light_off("red")
+
+# TRY IT:
+# 1. Light up yellow, then blue, the same way
+# 2. Make the pauses shorter: sleep(0.3)
+# 3. Can you make TWO pads glow at the same time?
+`
+},
+{
+  title: "Loops: don't repeat yourself",
+  chips: ["lists", "for loops", "flash()"],
+  html: `
+    <p>Stage 1 took six lines to light two pads. Programmers hate repeating themselves —
+    that's what <b>loops</b> are for.</p>
+    <p>A <b>list</b> holds several values in order: <code>["green", "red", "yellow", "blue"]</code>.
+    A <b>for loop</b> visits each item, putting it in the variable <code>color</code> one at a time.</p>
+    <p><code>flash(color, 0.4)</code> is a shortcut: it turns a pad on, waits 0.4&nbsp;seconds,
+    and turns it off — three steps in one call.</p>
+    <div class="challenge"><b>Try it:</b> reverse the order, repeat the whole show 3 times with a
+    loop <i>inside</i> a loop, then make each flash quicker than the last.</div>`,
+  code: `colors = ["green", "red", "yellow", "blue"]
+
+for color in colors:
+    flash(color, 0.4)    # on + wait + off, all in one call
+
+# TRY IT:
+# 1. Flash the colors in reverse (blue first)
+# 2. Flash the whole set 3 times
+#    (hint: put this loop inside another loop: for i in range(3): )
+# 3. Make each flash FASTER than the one before
+#    (hint: make a variable like speed = 0.5 and shrink it each loop)
+`
+},
+{
+  title: "Sound + your first function",
+  chips: ["def", "beep()", "tone()"],
+  html: `
+    <p>Every Simon pad has its own musical note. <code>beep("green")</code> plays green's note.</p>
+    <p>A real Simon lights the pad <i>and</i> plays its note at the same moment. That's two steps
+    we'll want over and over — so we bundle them into our own <b>function</b> with
+    <code>def</code>.</p>
+    <p>Everything indented under <code>def show(color):</code> belongs to the function.
+    Nothing runs until you <i>call</i> it with <code>show("red")</code>.</p>
+    <div class="challenge"><b>Try it:</b> compose a 5-note tune with <code>show()</code>, add a
+    speed setting, then go freeform with <code>tone(440, 0.5)</code> — any frequency you like.</div>`,
+  code: `# beep(color) plays that pad's note
+beep("green")
+beep("yellow")
+
+# A function bundles steps so you can reuse them.
+# A real Simon lights up AND beeps together:
+
+def show(color):
+    light_on(color)
+    beep(color)
+    light_off(color)
+
+show("red")
+show("blue")
+
+# TRY IT:
+# 1. Use show() to play a 5-note tune
+# 2. Add a speed setting:  def show(color, seconds):
+#    then pass seconds to beep
+# 3. tone(440, 0.5) plays ANY frequency for any time.
+#    Compose a melody! (261=C, 294=D, 330=E, 349=F, 392=G)
+`
+},
+{
+  title: "Simon speaks",
+  chips: ["lists as data", "say()", "random"],
+  html: `
+    <p>Time to make Simon do its signature move: <b>play back a pattern</b>.</p>
+    <p>The pattern is just a list of colors. Loop over it and <code>show()</code> each one.
+    Notice how the <i>data</i> (the pattern) is separate from the <i>code</i> that plays it —
+    change the list and the same loop plays anything.</p>
+    <p><code>say("WATCH...")</code> puts a message on the round display in the middle of the board.</p>
+    <div class="challenge"><b>Try it:</b> the real game invents patterns randomly.
+    <code>random.choice(colors)</code> picks a random item — build a random 5-color pattern
+    with a loop and <code>.append()</code>.</div>`,
+  code: `def show(color):
+    light_on(color)
+    beep(color)
+    light_off(color)
+    sleep(0.15)          # small gap between notes
+
+pattern = ["green", "green", "red", "yellow"]
+
+say("WATCH...")
+sleep(1)
+
+for color in pattern:
+    show(color)
+
+say("DONE")
+
+# TRY IT:
+# 1. Make the pattern longer. Does the loop care? Why not?
+# 2. Build a RANDOM pattern instead:
+#    import random
+#    pattern = []
+#    for i in range(5):
+#        pattern.append(random.choice(["green", "red", "yellow", "blue"]))
+`
+},
+{
+  title: "Your turn, human",
+  chips: ["while True", "wait_for_press()", "Stop button"],
+  html: `
+    <p>A game needs <b>input</b>. <code>wait_for_press()</code> makes your program stand still
+    until someone clicks a pad — then it hands you the color name as a string.</p>
+    <p><code>while True:</code> is a loop that never ends on its own. That's normal in robotics —
+    a robot's main loop runs until you kill the power. Here, the <b>Stop button</b> is your
+    kill switch. Try it!</p>
+    <p><code>break</code> is the polite way out: it jumps out of the loop from inside.</p>
+    <div class="challenge"><b>Try it:</b> count the presses, stop after 5 with <code>break</code>,
+    then build a secret knock — three reds in a row says <code>UNLOCKED</code>.</div>`,
+  code: `say("PRESS PADS")
+
+while True:
+    color = wait_for_press()    # waits here until a pad is clicked
+    print("You pressed:", color)
+    say(color.upper())
+
+# This loop runs FOREVER -- use the Stop button!
+
+# TRY IT:
+# 1. Count the presses with a variable, and say() the count
+# 2. End the loop after 5 presses (hint: if count == 5: break)
+# 3. Secret knock: if someone presses red 3 times in a row,
+#    say("UNLOCKED") and break
+`
+},
+{
+  title: "Right or wrong?",
+  chips: ["comparison ==", "break", "clear_presses()"],
+  html: `
+    <p>Now the two halves meet: Simon plays a pattern, the player repeats it, and your code
+    <b>judges</b> them.</p>
+    <p>For every color in the pattern, wait for a press and compare with <code>!=</code>.
+    One wrong press and we <code>break</code> out immediately — no mercy.</p>
+    <p>One subtle bug: if the player clicks <i>during</i> the WATCH phase, those clicks queue up
+    and get counted later. <code>clear_presses()</code> empties the queue — call it right before
+    the player's turn.</p>
+    <div class="challenge"><b>Try it:</b> add a victory flash pattern and a losing foghorn
+    (<code>tone(110, 1.2)</code>), then report <i>how many</i> they got right.</div>`,
+  code: `def show(color):
+    light_on(color)
+    beep(color)
+    light_off(color)
+    sleep(0.15)
+
+pattern = ["green", "red", "red", "blue"]
+
+say("WATCH")
+sleep(1)
+for color in pattern:
+    show(color)
+
+clear_presses()      # ignore any early clicks
+say("YOUR TURN")
+
+correct = True
+for expected in pattern:
+    press = wait_for_press()
+    if press != expected:
+        correct = False
+        break
+
+if correct:
+    say("PERFECT!")
+else:
+    say("GAME OVER")
+
+# TRY IT:
+# 1. On a win, flash all four pads. On a loss, play tone(110, 1.2)
+# 2. Count how many presses were right, and say() the number
+# 3. Delete the clear_presses() line, click pads during WATCH,
+#    and see the bug for yourself
+`
+},
+{
+  title: "The full game",
+  chips: ["putting it together", ".append()", "game loop"],
+  html: `
+    <p>This is it — every piece you've built, snapped together into real Simon:</p>
+    <p><b>1.</b> Each round, append one random color to the pattern.
+    <b>2.</b> Play the whole pattern back.
+    <b>3.</b> Read the player's answer, press by press.
+    <b>4.</b> Right? Score a point and loop again. Wrong? Game over.</p>
+    <p>Read the code before running it. You already know every single line — the only new thing
+    is how they fit together. That's what programming actually is.</p>
+    <div class="challenge"><b>Try it:</b> play a few rounds! What's your high score?
+    Then start tweaking: speed, sounds, mercy rules — it's your game now.</div>`,
+  code: `import random
+
+COLORS = ["green", "red", "yellow", "blue"]
+
+def show(color):
+    light_on(color)
+    beep(color)
+    light_off(color)
+    sleep(0.15)
+
+pattern = []
+score = 0
+
+while True:
+    # 1) Simon adds one random color to the pattern
+    pattern.append(random.choice(COLORS))
+    say("ROUND " + str(len(pattern)))
+    sleep(1)
+
+    # 2) Simon plays the whole pattern
+    for color in pattern:
+        show(color)
+
+    # 3) The player repeats it
+    clear_presses()
+    say("GO!")
+    failed = False
+    for expected in pattern:
+        press = wait_for_press()
+        if press != expected:
+            failed = True
+            break
+
+    # 4) Judge the round
+    if failed:
+        say("GAME OVER - " + str(score))
+        tone(110, 1.2)
+        break
+
+    score = score + 1
+    sleep(0.8)
+
+# TRY IT:
+# 1. Speed it up: flash shorter as the pattern grows
+#    (hint: seconds = max(0.1, 0.4 - len(pattern) * 0.03))
+# 2. Give the player 3 lives instead of instant death
+# 3. Celebrate every 5th round with a rainbow flash
+`
+},
+{
+  title: "Level up",
+  chips: ["open challenges", "your game now"],
+  html: `
+    <p>You built Simon. Now break it, bend it, and make it yours. Pick any challenge —
+    they're roughly in order of difficulty:</p>
+    <p><b>Turbo mode</b> — flashes get shorter every round. How fast can it get before it's unplayable?</p>
+    <p><b>Three lives</b> — a wrong press costs a life instead of ending the game. Show lives on the display.</p>
+    <p><b>Victory jingle</b> — compose an over-the-top celebration with <code>tone()</code> when
+    the player beats round 10.</p>
+    <p><b>Reverse mode</b> — the player must repeat the pattern <i>backwards</i>.
+    (hint: <code>reversed(pattern)</code>)</p>
+    <p><b>Two-player battle</b> — players alternate turns; a miss means the other player wins.</p>
+    <div class="challenge"><b>Show off:</b> when you've got something working, demo it to
+    another team. The best bug story wins too.</div>`,
+  code: `# Your working Simon game, ready to remix.
+import random
+
+COLORS = ["green", "red", "yellow", "blue"]
+
+def show(color, seconds=0.4):
+    light_on(color)
+    beep(color, seconds)
+    light_off(color)
+    sleep(0.15)
+
+pattern = []
+score = 0
+
+while True:
+    pattern.append(random.choice(COLORS))
+    say("ROUND " + str(len(pattern)))
+    sleep(1)
+
+    for color in pattern:
+        show(color)
+
+    clear_presses()
+    say("GO!")
+    failed = False
+    for expected in pattern:
+        press = wait_for_press()
+        if press != expected:
+            failed = True
+            break
+
+    if failed:
+        say("GAME OVER - " + str(score))
+        tone(110, 1.2)
+        break
+
+    score = score + 1
+    sleep(0.8)
+`
+}
+];
+
+/* =====================================================
+   Stage navigation (edits survive next/previous)
+   ===================================================== */
+let current = 0;
+let editor = null;
+const savedCode = {};            // stageIndex -> edited code (in-memory)
+
+const lessonEl = document.getElementById("lesson");
+const dotsEl = document.getElementById("dots");
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
+
+function renderDots() {
+  dotsEl.innerHTML = "";
+  STAGES.forEach((s, i) => {
+    const d = document.createElement("button");
+    d.className = "dot" + (i === current ? " active" : i < current ? " done" : "");
+    d.title = "Stage " + (i + 1) + ": " + s.title;
+    d.addEventListener("click", () => gotoStage(i));
+    dotsEl.appendChild(d);
+  });
+}
+
+function renderLesson() {
+  const s = STAGES[current];
+  lessonEl.innerHTML = `
+    <div class="stage-label display">STAGE ${current + 1} / ${STAGES.length}</div>
+    <h2>${s.title}</h2>
+    <div class="chips">${s.chips.map(c => `<span class="chip">${c}</span>`).join("")}</div>
+    ${s.html}
+    <details class="cheats">
+      <summary>Cheat sheet: every board function</summary>
+      <table>
+        <tr><td>light_on(c)</td><td>turn a pad on</td></tr>
+        <tr><td>light_off(c)</td><td>turn a pad off</td></tr>
+        <tr><td>all_off()</td><td>everything off</td></tr>
+        <tr><td>flash(c, sec)</td><td>on, wait, off</td></tr>
+        <tr><td>beep(c, sec)</td><td>play a pad's note</td></tr>
+        <tr><td>tone(freq, sec)</td><td>play any frequency</td></tr>
+        <tr><td>sleep(sec)</td><td>pause the program</td></tr>
+        <tr><td>wait_for_press()</td><td>wait, return the color clicked</td></tr>
+        <tr><td>clear_presses()</td><td>forget queued clicks</td></tr>
+        <tr><td>say(text)</td><td>show text on the center display</td></tr>
+        <tr><td>print(x)</td><td>write to the output panel</td></tr>
+      </table>
+    </details>`;
+  prevBtn.disabled = current === 0;
+  nextBtn.disabled = current === STAGES.length - 1;
+  renderDots();
+}
+
+function gotoStage(i) {
+  if (i === current || i < 0 || i >= STAGES.length) return;
+  if (editor) savedCode[current] = editor.getValue();   // keep edits
+  current = i;
+  if (editor) editor.setValue(savedCode[i] !== undefined ? savedCode[i] : STAGES[i].code);
+  renderLesson();
+}
+
+prevBtn.addEventListener("click", () => gotoStage(current - 1));
+nextBtn.addEventListener("click", () => gotoStage(current + 1));
+
+document.getElementById("resetBtn").addEventListener("click", () => {
+  delete savedCode[current];
+  if (editor) editor.setValue(STAGES[current].code);
+});
+
+renderLesson();
+
+/* =====================================================
+   Monaco editor
+   ===================================================== */
+self.MonacoEnvironment = {
+  getWorkerUrl: function () {
+    return URL.createObjectURL(new Blob([
+      "self.MonacoEnvironment={baseUrl:'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/'};" +
+      "importScripts('https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/base/worker/workerMain.js');"
+    ], { type: "text/javascript" }));
+  }
+};
+
+let monacoReady = false;
+require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs" } });
+require(["vs/editor/editor.main"], function () {
+  editor = monaco.editor.create(document.getElementById("editor"), {
+    value: STAGES[current].code,
+    language: "python",
+    theme: "vs-dark",
+    fontSize: 15,
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    automaticLayout: true,
+    tabSize: 4,
+    insertSpaces: true,
+    padding: { top: 10 }
+  });
+  monacoReady = true;
+  updateReady();
+});
+
+/* =====================================================
+   Board hardware (JS side)
+   ===================================================== */
+const FREQS = { green: 392, red: 330, yellow: 262, blue: 196 };
+const hubEl = document.getElementById("hub");
+const consoleEl = document.getElementById("console");
+
+window.stopFlag = false;
+window.pressQueue = [];
+window.clearPresses = () => { window.pressQueue.length = 0; };
+
+window.setPad = (color, on) => {
+  const el = document.querySelector(".pad." + color);
+  if (el) el.classList.toggle("lit", !!on);
+};
+window.allPadsOff = () => {
+  document.querySelectorAll(".pad").forEach(p => p.classList.remove("lit"));
+};
+window.setHub = (text) => {
+  hubEl.textContent = String(text).slice(0, 40);
+};
+
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+window.playFreq = (freq, ms) => {
+  try {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.value = freq;
+    const t = ctx.currentTime, dur = Math.max(ms, 40) / 1000;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.22, t + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+  } catch (e) { /* audio blocked; stay silent */ }
+};
+window.padTone = (color, ms) => window.playFreq(FREQS[color] || 300, ms);
+
+/* Pads: click feedback + press queue */
+document.querySelectorAll(".pad").forEach(pad => {
+  pad.addEventListener("click", () => {
+    const color = pad.dataset.color;
+    pad.classList.add("pulse");
+    setTimeout(() => pad.classList.remove("pulse"), 160);
+    window.padTone(color, 180);
+    window.pressQueue.push(color);
+  });
+});
+
+/* Console */
+window.consoleWrite = (s) => {
+  const hint = consoleEl.querySelector(".hint");
+  if (hint) hint.remove();
+  consoleEl.appendChild(document.createTextNode(s));
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+};
+window.consoleError = (s) => {
+  const hint = consoleEl.querySelector(".hint");
+  if (hint) hint.remove();
+  const span = document.createElement("span");
+  span.className = "err";
+  span.textContent = "\n" + s + "\n";
+  consoleEl.appendChild(span);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+};
+function clearConsole() { consoleEl.textContent = ""; }
+
+/* =====================================================
+   Run / Stop wiring (Python side registers window.startRun)
+   ===================================================== */
+const runBtn = document.getElementById("runBtn");
+const stopBtn = document.getElementById("stopBtn");
+const pyStatus = document.getElementById("pyStatus");
+
+let pyReadyFlag = false;
+let running = false;
+
+function updateReady() {
+  const ready = pyReadyFlag && monacoReady;
+  runBtn.disabled = !ready || running;
+  if (ready) pyStatus.textContent = running ? "Running…" : "Python ready";
+}
+
+window.pyReady = () => { pyReadyFlag = true; updateReady(); };
+
+window.onRunStart = () => {
+  running = true;
+  stopBtn.disabled = false;
+  updateReady();
+};
+window.onRunEnd = () => {
+  running = false;
+  stopBtn.disabled = true;
+  updateReady();
+};
+
+runBtn.addEventListener("click", () => {
+  if (running || !window.startRun) return;
+  ensureAudio();                       // user gesture unlocks sound
+  window.stopFlag = false;
+  window.pressQueue.length = 0;
+  clearConsole();
+  window.allPadsOff();
+  window.startRun(editor.getValue());
+});
+
+stopBtn.addEventListener("click", () => { window.stopFlag = true; });
+</script>
+
+<!-- =====================================================
+     Python runtime: student-code runner + board API
+     ===================================================== -->
+<script type="py">
+import ast, asyncio, inspect, sys, time, traceback
+import js
+from pyodide.ffi import create_proxy
+
+window = js.window
+
+_COLORS = ("green", "red", "yellow", "blue")
+
+class StopRun(Exception):
+    pass
+
+def _check_stop():
+    if window.stopFlag:
+        raise StopRun()
+
+def _norm(color):
+    c = str(color).lower().strip()
+    if c not in _COLORS:
+        raise ValueError(
+            "Unknown color %r - the pads are 'green', 'red', 'yellow' and 'blue'" % (color,)
+        )
+    return c
+
+async def _sleep(seconds=1.0):
+    seconds = float(seconds)
+    end = time.time() + seconds
+    while True:
+        _check_stop()
+        left = end - time.time()
+        if left <= 0:
+            return
+        await asyncio.sleep(min(0.05, left))
+
+# ---------- the API students call ----------
+def light_on(color):
+    window.setPad(_norm(color), True)
+
+def light_off(color):
+    window.setPad(_norm(color), False)
+
+def all_off():
+    window.allPadsOff()
+
+def say(text):
+    window.setHub(str(text))
+
+def clear_presses():
+    window.clearPresses()
+
+async def sleep(seconds=1.0):
+    await _sleep(seconds)
+
+async def flash(color, seconds=0.4):
+    c = _norm(color)
+    window.setPad(c, True)
+    try:
+        await _sleep(seconds)
+    finally:
+        window.setPad(c, False)
+
+async def beep(color, seconds=0.35):
+    c = _norm(color)
+    window.padTone(c, int(float(seconds) * 1000))
+    await _sleep(seconds)
+
+async def tone(freq, seconds=0.4):
+    window.playFreq(float(freq), int(float(seconds) * 1000))
+    await _sleep(seconds)
+
+async def wait_for_press():
+    while True:
+        _check_stop()
+        if window.pressQueue.length > 0:
+            return str(window.pressQueue.shift())
+        await asyncio.sleep(0.02)
+
+# ---------- plumbing: run plain student code as async ----------
+async def __mw__(value):
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+async def __cp__():
+    _check_stop()
+    await asyncio.sleep(0)
+
+class _Console:
+    def write(self, s):
+        if s:
+            window.consoleWrite(str(s))
+    def flush(self):
+        pass
+
+class _Asyncify(ast.NodeTransformer):
+    """Let students write normal blocking-style code:
+    - every def becomes async def
+    - every call is awaited if it returns a coroutine
+    - every loop gets a stop-check so the Stop button always works
+    """
+    def visit_FunctionDef(self, node):
+        self.generic_visit(node)
+        node.__class__ = ast.AsyncFunctionDef
+        return node
+
+    def _loop(self, node):
+        self.generic_visit(node)
+        cp = ast.Expr(
+            value=ast.Await(
+                value=ast.Call(func=ast.Name(id="__cp__", ctx=ast.Load()), args=[], keywords=[])
+            )
+        )
+        ast.copy_location(cp, node)
+        node.body.insert(0, cp)
+        return node
+
+    visit_While = _loop
+    visit_For = _loop
+
+    def visit_Call(self, node):
+        self.generic_visit(node)
+        wrapped = ast.Await(
+            value=ast.Call(func=ast.Name(id="__mw__", ctx=ast.Load()), args=[node], keywords=[])
+        )
+        return ast.copy_location(wrapped, node)
+
+_API = dict(
+    sleep=sleep, flash=flash, beep=beep, tone=tone,
+    wait_for_press=wait_for_press, clear_presses=clear_presses,
+    light_on=light_on, light_off=light_off, all_off=all_off, say=say,
+    __mw__=__mw__, __cp__=__cp__,
+)
+
+_running = False
+
+async def _run(code):
+    global _running
+    _running = True
+    window.onRunStart()
+    old_stdout = sys.stdout
+    sys.stdout = _Console()
+    try:
+        try:
+            mod = ast.parse(code)
+        except SyntaxError as e:
+            window.consoleError("Syntax error on line %s: %s" % (e.lineno, e.msg))
+            return
+        _Asyncify().visit(mod)
+        wrapper = ast.parse("async def __student__():\n    pass")
+        fn = wrapper.body[0]
+        fn.body = mod.body if mod.body else [ast.Pass()]
+        ast.fix_missing_locations(wrapper)
+        code_obj = compile(wrapper, "<your code>", "exec")
+        scope = dict(_API)
+        exec(code_obj, scope)
+        await scope["__student__"]()
+        window.consoleWrite("\n-- finished --\n")
+    except StopRun:
+        window.consoleWrite("\n-- stopped --\n")
+    except Exception as e:
+        line = None
+        for frame in traceback.extract_tb(e.__traceback__):
+            if frame.filename == "<your code>":
+                line = frame.lineno
+        prefix = ("Error on line %s: " % line) if line else "Error: "
+        window.consoleError(prefix + type(e).__name__ + ": " + str(e))
+    finally:
+        sys.stdout = old_stdout
+        _running = False
+        window.onRunEnd()
+
+def start_run(code):
+    if _running:
+        return
+    asyncio.ensure_future(_run(str(code)))
+
+window.startRun = create_proxy(start_run)
+window.pyReady()
+</script>
+
+</body>
+</html>
